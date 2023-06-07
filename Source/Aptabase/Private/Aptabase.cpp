@@ -1,5 +1,6 @@
 ﻿#include "Aptabase.h"
 
+#include <Framework/Application/SlateApplication.h>
 #include <Modules/ModuleManager.h>
 
 #include "AptabaseAnalyticsProvider.h"
@@ -12,15 +13,28 @@ TSharedPtr<IAnalyticsProvider> FAptabaseModule::CreateAnalyticsProvider(const FA
 void FAptabaseModule::StartupModule()
 {
 	AnalyticsProvider = MakeShared<FAptabaseAnalyticsProvider>();
+
+	FSlateApplication& Application = FSlateApplication::Get();
+	Application.OnPreShutdown().AddRaw(this, &FAptabaseModule::OnApplicationShutdown);
 }
 
 void FAptabaseModule::ShutdownModule()
 {
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication& Application = FSlateApplication::Get();
+		Application.OnPreShutdown().RemoveAll(this);
+	}
+}
+
+void FAptabaseModule::OnApplicationShutdown()
+{
 	if (AnalyticsProvider.IsValid())
 	{
-		// TODO: Adjust the end session calls to be more in line with what other modules do: 1) end session on destruction & 2) end session if a new one is started
-		// AnalyticsProvider->EndSession();
+		AnalyticsProvider->EndSession();
 	}
+
+	AnalyticsProvider.Reset();
 }
 
 IMPLEMENT_MODULE(FAptabaseModule, Aptabase);

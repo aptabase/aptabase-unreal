@@ -44,11 +44,6 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics", meta = (EditCondition = "Host == EAptabaseHost::SH", EditConditionHides))
 	FString CustomHost;
-	/**
-	 * @brief Whether this event should show up inside the "Release" or "Debug" dashboard inside the Web view
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics")
-	bool bDebugMode = false;
 
 private:
 	// Begin UDeveloperSettings interface

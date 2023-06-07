@@ -13,7 +13,11 @@ public:
 	virtual void ShutdownModule() override;
 	virtual TSharedPtr<IAnalyticsProvider> CreateAnalyticsProvider(const FAnalyticsProviderConfigurationDelegate& GetConfigValue) const override;
 	// End IAnalyticsProviderModule Interface
-
+	/**
+	 * @brief Callback executed before the application is shutdown.
+	 * @note We will clean up the analytics provider and end the session if it's left running.
+	 */
+	void OnApplicationShutdown();
 	/**
 	 * @brief Reference to the Aptabase provider instance
 	 */

@@ -14,13 +14,28 @@
 
 bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttribute>& Attributes)
 {
+	if (bHasActiveSession)
+	{
+		UE_LOG(LogAptabase, Warning, TEXT("Session start requested while a session was running. Please manually end the session before starting a new one."));
+		EndSession();
+	}
+
+	bHasActiveSession = true;
 	RecordEvent(TEXT("SessionStart"), Attributes);
 	return true;
 }
 
 void FAptabaseAnalyticsProvider::EndSession()
 {
+	if (!bHasActiveSession)
+	{
+		UE_LOG(LogAptabase, Log, TEXT("No session is currently active. Discarding session end request."));
+		return;
+	}
+
 	RecordEvent(TEXT("SessionEnd"), {});
+
+	bHasActiveSession = false;
 }
 
 FString FAptabaseAnalyticsProvider::GetSessionID() const
@@ -30,6 +45,12 @@ FString FAptabaseAnalyticsProvider::GetSessionID() const
 
 bool FAptabaseAnalyticsProvider::SetSessionID(const FString& InSessionID)
 {
+	if (bHasActiveSession)
+	{
+		UE_LOG(LogAptabase, Warning, TEXT("Cannot change the Session Id while session is running. Discarding session id set request."));
+		return false;
+	}
+
 	SessionId = InSessionID;
 	return true;
 }
@@ -41,7 +62,7 @@ void FAptabaseAnalyticsProvider::FlushEvents()
 
 void FAptabaseAnalyticsProvider::SetUserID(const FString& InUserID)
 {
-	UE_LOG(LogAptabase, Log, TEXT("Aptabase is a privacy-first solution and will NOT send the UserId to the backend"));
+	UE_LOG(LogAptabase, Log, TEXT("Aptabase is a privacy-first solution and will NOT send the UserId to the backend. Discarding user id set request."));
 
 	UserId = InUserID;
 }
@@ -65,7 +86,7 @@ void FAptabaseAnalyticsProvider::RecordEvent(const FString& EventName, const TAr
 	EventPayload.SystemProps.SdkVersion = FString::Printf(TEXT("aptabase-unreal@%s"), *AptabasePlugin->GetDescriptor().VersionName);
 	EventPayload.SystemProps.OsName = UGameplayStatics::GetPlatformName();
 	EventPayload.SystemProps.OsVersion = FPlatformMisc::GetOSVersion();
-	EventPayload.SystemProps.IsDebug = Settings->bDebugMode;
+	EventPayload.SystemProps.IsDebug = !UE_BUILD_SHIPPING;
 
 	for (const FAnalyticsEventAttribute& Attribute : Attributes)
 	{

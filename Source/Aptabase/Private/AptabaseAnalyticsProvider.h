@@ -23,8 +23,6 @@ private:
 	 * @brief Callback executed when an event is successfully recoded by the analytics backend.
 	 */
 	void OnEventRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
-
-private:
 	/**
 	 * @brief Current Id of the user, required by the IAnalyticsProvider interface
 	 * @warning Aptabase is a privacy-first solution and will NOT send the UserId to the backend.
@@ -34,4 +32,8 @@ private:
 	 * @brief Current Id of the user's session
 	 */
 	FString SessionId;
+	/**
+	 * @brief Indicates if the user has an active session running.
+	 */
+	bool bHasActiveSession = false;
 };

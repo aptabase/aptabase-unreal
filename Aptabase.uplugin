@@ -7,10 +7,10 @@
 	"Category": "Analytics",
 	"CreatedBy": "Sumbit Labs Limited",
 	"CreatedByURL": "https://aptabase.com/",
-	"DocsURL": "",
+	"DocsURL": "https://github.com/aptabase/aptabase-unreal",
 	"MarketplaceURL": "",
-	"SupportURL": "",
-	"EnabledByDefault": true,
+	"SupportURL": "https://github.com/aptabase/aptabase-unreal/issues",
+	"EnabledByDefault": false,
 	"CanContainContent": false,
 	"Modules": [
 		{
