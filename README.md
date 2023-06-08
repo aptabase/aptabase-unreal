@@ -64,7 +64,7 @@ Attributes.Emplace(TEXT("PlayerHeight"), 1.75);
 Attributes.Emplace(TEXT("PlayerName"), TEXT("John"));
 Attributes.Emplace(TEXT("PlayerPower"), 9001);
 
-FAnalytics::Get().GetDefaultConfiguredProvider()->RecordError(TEXT("Test"), Attributes);
+FAnalytics::Get().GetDefaultConfiguredProvider()->RecordEvent(TEXT("Test"), Attributes);
 ```
 
 or more complex calls like `Record Currency Purchase`.
