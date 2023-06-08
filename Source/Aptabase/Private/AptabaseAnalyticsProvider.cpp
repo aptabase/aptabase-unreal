@@ -103,7 +103,7 @@ void FAptabaseAnalyticsProvider::RecordEvent(const FString& EventName, const TAr
 	const TSharedRef<IHttpRequest> HttpRequest = FHttpModule::Get().CreateRequest();
 	HttpRequest->SetVerb("POST");
 	HttpRequest->SetContentAsString(RequestJsonPayload);
-	HttpRequest->SetHeader(TEXT("App-Key"), Settings->ApiKey);
+	HttpRequest->SetHeader(TEXT("App-Key"), Settings->AppKey);
 	HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	HttpRequest->SetURL(RequestUrl);
 	HttpRequest->OnProcessRequestComplete().BindRaw(this, &FAptabaseAnalyticsProvider::OnEventRecoded);

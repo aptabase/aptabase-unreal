@@ -33,9 +33,9 @@ public:
 	 * @brief Key used to identify your app when making requests
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics")
-	FString ApiKey = TEXT("");
+	FString AppKey = TEXT("");
 	/**
-	 * @brief Automatically determined based on the ApiKey. Will decide the
+	 * @brief Automatically determined based on the AppKey. Will decide the
 	 */
 	UPROPERTY(Config, VisibleAnywhere, Category = "Aptabase Analytics")
 	EAptabaseHost Host;

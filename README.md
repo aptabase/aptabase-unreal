@@ -32,7 +32,7 @@ ProviderModuleName=Aptabase
 
 First, you need to get your `App Key` from Aptabase, you can find it in the `Instructions` menu on the left side menu.
 
-Then you have to set it inside `Project Settings → Analytics → Aptabase` inside your `Api Key` field.
+Then you have to set it inside `Project Settings → Analytics → Aptabase` inside your `App Key` field.
 
 Based on the key, your `Host` will be selected. In the case of self-hosted versions, you will get an input field to enter your custom URL.
 

@@ -42,10 +42,10 @@ void UAptabaseSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UAptabaseSettings, ApiKey))
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UAptabaseSettings, AppKey))
 	{
 		TArray<FString> Parts;
-		ApiKey.ParseIntoArray(Parts, TEXT("-"));
+		AppKey.ParseIntoArray(Parts, TEXT("-"));
 
 		int64 EnumValue = -1; // If the parts were not parsed as we expected, we default to (INVALID).
 		if (Parts.Num() == 3)
