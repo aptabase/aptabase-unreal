@@ -6,7 +6,7 @@ Instrument your Unreal Engine project with Aptabase, an Open Source, Privacy-Fir
 
 ## Install
 
-Install the SDK via the [Unreal Marketplace](TODO) or clone this repository inside your `Plugins` folder and compile it (requires C++ based project).
+Install the SDK via the [Unreal Marketplace](https://github.com/aptabase/aptabase-unreal/issues/2) or clone this repository inside your `Plugins` folder and compile it (requires C++ based project).
 
 ## Enabling
 
