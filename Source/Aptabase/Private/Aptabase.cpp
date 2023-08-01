@@ -14,8 +14,11 @@ void FAptabaseModule::StartupModule()
 {
 	AnalyticsProvider = MakeShared<FAptabaseAnalyticsProvider>();
 
-	FSlateApplication& Application = FSlateApplication::Get();
-	Application.OnPreShutdown().AddRaw(this, &FAptabaseModule::OnApplicationShutdown);
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication& Application = FSlateApplication::Get();
+		Application.OnPreShutdown().AddRaw(this, &FAptabaseModule::OnApplicationShutdown);
+	}
 }
 
 void FAptabaseModule::ShutdownModule()
