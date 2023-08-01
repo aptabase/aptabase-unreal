@@ -100,7 +100,7 @@ void FAptabaseAnalyticsProvider::RecordEvent(const FString& EventName, const TAr
 
 	UE_LOG(LogAptabase, Verbose, TEXT("Sending event: %s to %s Payload: %s"), *EventName, *RequestUrl, *RequestJsonPayload);
 
-	const TSharedRef<IHttpRequest> HttpRequest = FHttpModule::Get().CreateRequest();
+	const FHttpRequestRef HttpRequest = FHttpModule::Get().CreateRequest();
 	HttpRequest->SetVerb("POST");
 	HttpRequest->SetContentAsString(RequestJsonPayload);
 	HttpRequest->SetHeader(TEXT("App-Key"), Settings->AppKey);
