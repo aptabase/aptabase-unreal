@@ -1,7 +1,9 @@
-﻿#pragma once
+#pragma once
 
 #include <CoreMinimal.h>
 #include <Kismet/BlueprintFunctionLibrary.h>
+
+#include "ExtendedAnalyticsEventAttribute.h"
 
 #include "ExtendedAnalyticsBlueprintLibrary.generated.h"
 
@@ -23,7 +25,7 @@ public:
 	 * Creates and ExtendedAnalyticsEventAttribute with a name and a number (double) value
 	 */
 	UFUNCTION(BlueprintPure, Category = "Analytics")
-	static FExtendedAnalyticsEventAttribute MakeExtendedAnalyticsEventNumberAttribute(const FString& Name, const double Value);
+	static FExtendedAnalyticsEventAttribute MakeExtendedAnalyticsEventNumberAttribute(const FString& Name, const float Value);
 	/**
 	 * Records an event has happened by name with an array of ExtendedAttributes (preserve native type)
 	 */

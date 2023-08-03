@@ -1,4 +1,4 @@
-﻿#include "ExtendedAnalyticsBlueprintLibrary.h"
+#include "ExtendedAnalyticsBlueprintLibrary.h"
 
 #include <Analytics.h>
 #include <Interfaces/IAnalyticsProvider.h>
@@ -15,11 +15,11 @@ FExtendedAnalyticsEventAttribute UExtendedAnalyticsBlueprintLibrary::MakeExtende
 	return Attribute;
 }
 
-FExtendedAnalyticsEventAttribute UExtendedAnalyticsBlueprintLibrary::MakeExtendedAnalyticsEventNumberAttribute(const FString& Name, const double Value)
+FExtendedAnalyticsEventAttribute UExtendedAnalyticsBlueprintLibrary::MakeExtendedAnalyticsEventNumberAttribute(const FString& Name, const float Value)
 {
 	FExtendedAnalyticsEventAttribute Attribute;
 	Attribute.Key = Name;
-	Attribute.Value.Set<double>(Value);
+	Attribute.Value.Set<float>(Value);
 	return Attribute;
 }
 
