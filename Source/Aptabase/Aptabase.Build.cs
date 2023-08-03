@@ -15,6 +15,7 @@ public class Aptabase : ModuleRules
 			"EngineSettings",
 			"Slate",
 			"HTTP",
+			"Json",
 			"JsonUtilities",
 			"Projects",
 			"SlateCore",
