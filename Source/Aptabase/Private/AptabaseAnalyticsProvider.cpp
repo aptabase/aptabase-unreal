@@ -117,6 +117,10 @@ void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, c
 		{
 			Props->SetField(Attribute.Key, MakeShared<FJsonValueNumber>(AttributeValue.Get<double>()));
 		}
+		else if(AttributeValue.IsType<float>())
+		{
+			Props->SetField(Attribute.Key, MakeShared<FJsonValueNumber>(AttributeValue.Get<float>()));
+		}
 		else
 		{
 			Props->SetField(Attribute.Key, MakeShared<FJsonValueString>(AttributeValue.Get<FString>()));

@@ -23,5 +23,5 @@ struct FExtendedAnalyticsEventAttribute
 	 * Value of the Attribute
 	 * @note we can support more types but they need to be converted to the correct JSON type before sending
 	 */
-	TVariant<FString, double> Value;
+	TVariant<FString, float, double> Value;
 };
