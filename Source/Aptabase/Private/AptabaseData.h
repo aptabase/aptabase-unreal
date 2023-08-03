@@ -80,10 +80,4 @@ struct FAptabaseEventPayload
 	 */
 	UPROPERTY()
 	FAptabaseSystemProperties SystemProps;
-
-	/**
-	 * @brief Custom attributes attached to the event
-	 */
-	UPROPERTY()
-	TMap<FString, FString> Props;
 };

@@ -3,11 +3,19 @@
 #include <Interfaces/IAnalyticsProvider.h>
 #include <Interfaces/IHttpRequest.h>
 
+struct FExtendedAnalyticsEventAttribute;
+
 /**
  *  Implementation of Aptabase Analytics provider
  */
 class FAptabaseAnalyticsProvider : public IAnalyticsProvider
 {
+public:
+	/**
+	 * Overload for RecordEvent that takes an array of ExtendedAttributes
+	 */
+	void RecordExtendedEvent(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes);
+
 private:
 	// Being IAnalyticsProvider Interface
 	virtual bool StartSession(const TArray<FAnalyticsEventAttribute>& Attributes) override;
@@ -19,6 +27,10 @@ private:
 	virtual FString GetUserID() const override;
 	virtual void RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes) override;
 	// End IAnalyticsProvider Interface
+	/**
+	 * Internal function for common code in recording events
+	 */
+	void RecordEventInternal(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes);
 	/**
 	 * @brief Callback executed when an event is successfully recoded by the analytics backend.
 	 */

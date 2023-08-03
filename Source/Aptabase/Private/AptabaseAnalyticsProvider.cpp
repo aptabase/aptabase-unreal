@@ -11,6 +11,12 @@
 #include "AptabaseData.h"
 #include "AptabaseLog.h"
 #include "AptabaseSettings.h"
+#include "ExtendedAnalyticsEventAttribute.h"
+
+void FAptabaseAnalyticsProvider::RecordExtendedEvent(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes)
+{
+	RecordEventInternal(EventName, Attributes);
+}
 
 bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttribute>& Attributes)
 {
@@ -74,6 +80,19 @@ FString FAptabaseAnalyticsProvider::GetUserID() const
 
 void FAptabaseAnalyticsProvider::RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {
+	TArray<FExtendedAnalyticsEventAttribute> ExtendedAttributes;
+	for (const FAnalyticsEventAttribute& Attribute : Attributes)
+	{
+		FExtendedAnalyticsEventAttribute& NewAttribute = ExtendedAttributes.Emplace_GetRef();
+		NewAttribute.Key = Attribute.GetName();
+		NewAttribute.Value.Set<FString>(Attribute.GetValue());
+	}
+
+	RecordEventInternal(EventName, ExtendedAttributes);
+}
+
+void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes)
+{
 	const UAptabaseSettings* Settings = GetDefault<UAptabaseSettings>();
 	const TSharedPtr<IPlugin> AptabasePlugin = IPluginManager::Get().FindPlugin("Aptabase");
 
@@ -88,15 +107,30 @@ void FAptabaseAnalyticsProvider::RecordEvent(const FString& EventName, const TAr
 	EventPayload.SystemProps.OsVersion = FPlatformMisc::GetOSVersion();
 	EventPayload.SystemProps.IsDebug = !UE_BUILD_SHIPPING;
 
-	for (const FAnalyticsEventAttribute& Attribute : Attributes)
+	const TSharedPtr<FJsonObject> Props = MakeShared<FJsonObject>();
+
+	for (const FExtendedAnalyticsEventAttribute& Attribute : Attributes)
 	{
-		EventPayload.Props.Emplace(Attribute.GetName(), Attribute.GetValue());
+		const auto& AttributeValue = Attribute.Value;
+
+		if (AttributeValue.IsType<double>())
+		{
+			Props->SetField(Attribute.Key, MakeShared<FJsonValueNumber>(AttributeValue.Get<double>()));
+		}
+		else
+		{
+			Props->SetField(Attribute.Key, MakeShared<FJsonValueString>(AttributeValue.Get<FString>()));
+		}
 	}
 
 	const FString RequestUrl = FString::Printf(TEXT("%s/api/v0/event"), *Settings->GetApiUrl());
 
 	FString RequestJsonPayload;
-	FJsonObjectConverter::UStructToJsonObjectString(EventPayload, RequestJsonPayload);
+	const TSharedPtr<FJsonObject> Payload = FJsonObjectConverter::UStructToJsonObject(EventPayload);
+	Payload->SetObjectField("props", Props);
+
+	const TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&RequestJsonPayload, 0);
+	FJsonSerializer::Serialize(Payload.ToSharedRef(), JsonWriter);
 
 	UE_LOG(LogAptabase, Verbose, TEXT("Sending event: %s to %s Payload: %s"), *EventName, *RequestUrl, *RequestJsonPayload);
 
