@@ -38,6 +38,9 @@ FText UAptabaseSettings::GetSectionText() const
 	const FName DisplaySectionName = GetSectionName();
 	return FText::FromName(DisplaySectionName);
 }
+#endif
+
+#if WITH_EDITOR
 void UAptabaseSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);

@@ -20,7 +20,7 @@ enum class EAptabaseHost : uint8
 /**
  * Holds configuration for integrating the Aptabase Analytics tracker
  */
-UCLASS(Config = Aptabase)
+UCLASS(defaultconfig, Config = Aptabase)
 class APTABASE_API UAptabaseSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
