@@ -20,27 +20,17 @@ void FAptabaseAnalyticsProvider::RecordExtendedEvent(const FString& EventName, c
 
 bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttribute>& Attributes)
 {
-	if (bHasActiveSession)
-	{
-		UE_LOG(LogAptabase, Warning, TEXT("Session start requested while a session was running. Please manually end the session before starting a new one."));
-		EndSession();
-	}
+        int64 EpochInSeconds = FDateTime::UtcNow().ToUnixTimestamp();
+	int Random = FMath::RandRange(0, 99999999);
+	FString RandomString = FString::Printf(TEXT("%08d"), Random);
+	SessionId = FString::Printf(TEXT("%lld%s"), EpochInSeconds, *RandomString);
 
 	bHasActiveSession = true;
-	RecordEvent(TEXT("SessionStart"), Attributes);
 	return true;
 }
 
 void FAptabaseAnalyticsProvider::EndSession()
 {
-	if (!bHasActiveSession)
-	{
-		UE_LOG(LogAptabase, Log, TEXT("No session is currently active. Discarding session end request."));
-		return;
-	}
-
-	RecordEvent(TEXT("SessionEnd"), {});
-
 	bHasActiveSession = false;
 }
 
@@ -51,14 +41,8 @@ FString FAptabaseAnalyticsProvider::GetSessionID() const
 
 bool FAptabaseAnalyticsProvider::SetSessionID(const FString& InSessionID)
 {
-	if (bHasActiveSession)
-	{
-		UE_LOG(LogAptabase, Warning, TEXT("Cannot change the Session Id while session is running. Discarding session id set request."));
-		return false;
-	}
-
-	SessionId = InSessionID;
-	return true;
+	UE_LOG(LogAptabase, Log, TEXT("Aptabase automatically generates and manage sessions. Discarding session id set request."));
+	return false;
 }
 
 void FAptabaseAnalyticsProvider::FlushEvents()
@@ -93,6 +77,12 @@ void FAptabaseAnalyticsProvider::RecordEvent(const FString& EventName, const TAr
 
 void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes)
 {
+	if (!bHasActiveSession)
+	{
+		UE_LOG(LogAptabase, Log, TEXT("No session is currently active. Discarding event."));
+		return;
+	}
+
 	const UAptabaseSettings* Settings = GetDefault<UAptabaseSettings>();
 	const TSharedPtr<IPlugin> AptabasePlugin = IPluginManager::Get().FindPlugin("Aptabase");
 
