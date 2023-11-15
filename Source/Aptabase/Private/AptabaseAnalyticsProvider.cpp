@@ -20,10 +20,7 @@ void FAptabaseAnalyticsProvider::RecordExtendedEvent(const FString& EventName, c
 
 bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttribute>& Attributes)
 {
-        int64 EpochInSeconds = FDateTime::UtcNow().ToUnixTimestamp();
-	int Random = FMath::RandRange(0, 99999999);
-	FString RandomString = FString::Printf(TEXT("%08d"), Random);
-	SessionId = FString::Printf(TEXT("%lld%s"), EpochInSeconds, *RandomString);
+	SessionId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
 
 	bHasActiveSession = true;
 	return true;
@@ -79,7 +76,7 @@ void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, c
 {
 	if (!bHasActiveSession)
 	{
-		UE_LOG(LogAptabase, Log, TEXT("No session is currently active. Discarding event."));
+		UE_LOG(LogAptabase, Warning, TEXT("No session is currently active. Discarding event."));
 		return;
 	}
 
@@ -107,7 +104,7 @@ void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, c
 		{
 			Props->SetField(Attribute.Key, MakeShared<FJsonValueNumber>(AttributeValue.Get<double>()));
 		}
-		else if(AttributeValue.IsType<float>())
+		else if (AttributeValue.IsType<float>())
 		{
 			Props->SetField(Attribute.Key, MakeShared<FJsonValueNumber>(AttributeValue.Get<float>()));
 		}
