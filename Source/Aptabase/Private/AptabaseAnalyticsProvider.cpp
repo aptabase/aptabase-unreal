@@ -103,9 +103,10 @@ void FAptabaseAnalyticsProvider::FlushEvents()
 	{
 		constexpr int32 NumEventsPerRequest = 25;
 
-		const TArrayView<FAptabaseEventPayload> CurrentBatch = EventsToProcess.Left(NumEventsPerRequest);
-		EventsToProcess.RightChopInline(NumEventsPerRequest);
+		TArray<FAptabaseEventPayload> CurrentBatch;
+		CurrentBatch.Append(EventsToProcess.Left(NumEventsPerRequest));
 
+		EventsToProcess.RightChopInline(NumEventsPerRequest);
 		SendEventsNow(CurrentBatch);
 	}
 
@@ -163,7 +164,7 @@ void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, c
 	BatchedEvents.Emplace(EventPayload);
 }
 
-void FAptabaseAnalyticsProvider::SendEventsNow(const TArrayView<FAptabaseEventPayload>& EventPayloads)
+void FAptabaseAnalyticsProvider::SendEventsNow(const TArray<FAptabaseEventPayload>& EventPayloads)
 {
 	TArray<TSharedPtr<FJsonValue>> Events;
 
@@ -195,7 +196,7 @@ void FAptabaseAnalyticsProvider::SendEventsNow(const TArrayView<FAptabaseEventPa
 	HttpRequest->ProcessRequest();
 }
 
-void FAptabaseAnalyticsProvider::OnEventsRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, TArrayView<FAptabaseEventPayload> OriginalEvents)
+void FAptabaseAnalyticsProvider::OnEventsRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, TArray<FAptabaseEventPayload> OriginalEvents)
 {
 	if (!bWasSuccessful)
 	{

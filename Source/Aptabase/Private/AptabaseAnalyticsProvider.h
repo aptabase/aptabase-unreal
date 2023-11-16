@@ -32,7 +32,7 @@ private:
 	/**
 	 * @brief Instantly sends an Aptabase event to the backend
 	 */
-	void SendEventsNow(const TArrayView<FAptabaseEventPayload>& EventPayloads);
+	void SendEventsNow(const TArray<FAptabaseEventPayload>& EventPayloads);
 	/**
 	 * Internal function for common code in recording events
 	 */
@@ -40,7 +40,7 @@ private:
 	/**
 	 * @brief Callback executed when an event is successfully recoded by the analytics backend.
 	 */
-	void OnEventsRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, TArrayView<FAptabaseEventPayload> OriginalEvents);
+	void OnEventsRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, TArray<FAptabaseEventPayload> OriginalEvents);
 	/**
 	 * @brief Current Id of the user, required by the IAnalyticsProvider interface
 	 * @warning Aptabase is a privacy-first solution and will NOT send the UserId to the backend.
