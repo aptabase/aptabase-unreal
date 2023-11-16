@@ -35,7 +35,7 @@ namespace
 		// TODO: This should be something more extensible/customizable.
 		//  Developers should be able to decide on the fly if they are running Debug/Release
 
-		return !UE_BUILD_SHIPPING;
+		return UE_BUILD_SHIPPING;
 	}
 } // namespace
 
@@ -97,9 +97,16 @@ void FAptabaseAnalyticsProvider::FlushEvents()
 {
 	UE_LOG(LogAptabase, Verbose, TEXT("Flushing %s batched events."), *LexToString(BatchedEvents.Num()));
 
-	for (const auto& Event : BatchedEvents)
+	TArrayView<FAptabaseEventPayload> EventsToProcess = BatchedEvents;
+
+	while (!EventsToProcess.IsEmpty())
 	{
-		SendEventNow(Event);
+		constexpr int32 NumEventsPerRequest = 25;
+
+		const TArrayView<FAptabaseEventPayload> CurrentBatch = EventsToProcess.Left(NumEventsPerRequest);
+		EventsToProcess.RightChopInline(NumEventsPerRequest);
+
+		SendEventsNow(CurrentBatch);
 	}
 
 	BatchedEvents.Empty();
@@ -156,17 +163,27 @@ void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, c
 	BatchedEvents.Emplace(EventPayload);
 }
 
-void FAptabaseAnalyticsProvider::SendEventNow(const FAptabaseEventPayload& EventPayload)
+void FAptabaseAnalyticsProvider::SendEventsNow(const TArrayView<FAptabaseEventPayload>& EventPayloads)
 {
+	TArray<TSharedPtr<FJsonValue>> Events;
+
+	UE_LOG(LogAptabase, VeryVerbose, TEXT("Sending batch containing:"));
+	for (const FAptabaseEventPayload& EventPayload : EventPayloads)
+	{
+		UE_LOG(LogAptabase, VeryVerbose, TEXT("Event: %s"), *EventPayload.EventName);
+		const TSharedPtr<FJsonObject>& JsonPayload = EventPayload.ToJsonObject();
+
+		Events.Add(MakeShared<FJsonValueObject>(JsonPayload));
+	}
+
 	const UAptabaseSettings* Settings = GetDefault<UAptabaseSettings>();
 
-	const FString RequestUrl = FString::Printf(TEXT("%s/api/v0/event"), *Settings->GetApiUrl());
+	const FString RequestUrl = FString::Printf(TEXT("%s/api/v0/events"), *Settings->GetApiUrl());
 
 	FString RequestJsonPayload;
-	const TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&RequestJsonPayload, 0);
-	FJsonSerializer::Serialize(EventPayload.ToJsonObject(), JsonWriter);
 
-	UE_LOG(LogAptabase, VeryVerbose, TEXT("Sending event: %s to %s Payload: %s"), *EventPayload.EventName, *RequestUrl, *RequestJsonPayload);
+	const TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&RequestJsonPayload, 0);
+	FJsonSerializer::Serialize(Events, JsonWriter);
 
 	const FHttpRequestRef HttpRequest = FHttpModule::Get().CreateRequest();
 	HttpRequest->SetVerb("POST");
@@ -174,11 +191,11 @@ void FAptabaseAnalyticsProvider::SendEventNow(const FAptabaseEventPayload& Event
 	HttpRequest->SetHeader(TEXT("App-Key"), Settings->AppKey);
 	HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	HttpRequest->SetURL(RequestUrl);
-	HttpRequest->OnProcessRequestComplete().BindRaw(this, &FAptabaseAnalyticsProvider::OnEventRecoded, EventPayload);
+	HttpRequest->OnProcessRequestComplete().BindRaw(this, &FAptabaseAnalyticsProvider::OnEventsRecoded, EventPayloads);
 	HttpRequest->ProcessRequest();
 }
 
-void FAptabaseAnalyticsProvider::OnEventRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, FAptabaseEventPayload OriginalEvent)
+void FAptabaseAnalyticsProvider::OnEventsRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, TArrayView<FAptabaseEventPayload> OriginalEvents)
 {
 	if (!bWasSuccessful)
 	{
@@ -198,7 +215,7 @@ void FAptabaseAnalyticsProvider::OnEventRecoded(FHttpRequestPtr Request, FHttpRe
 		else if (ResponseCode >= 500)
 		{
 			UE_LOG(LogAptabase, Error, TEXT("Server-side issue. Event will be re-queued."))
-			BatchedEvents.Emplace(OriginalEvent);
+			BatchedEvents.Append(OriginalEvents);
 		}
 
 		return;

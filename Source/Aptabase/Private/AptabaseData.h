@@ -91,5 +91,5 @@ struct FAptabaseEventPayload
 	/**
 	 * @brief Converts the current data to a JSON payload for the backend HTTP requests
 	 */
-	TSharedRef<FJsonObject> ToJsonObject() const;
+	TSharedPtr<FJsonObject> ToJsonObject() const;
 };

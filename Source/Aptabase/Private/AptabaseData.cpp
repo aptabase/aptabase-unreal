@@ -2,7 +2,7 @@
 
 #include <JsonObjectConverter.h>
 
-TSharedRef<FJsonObject> FAptabaseEventPayload::ToJsonObject() const
+TSharedPtr<FJsonObject> FAptabaseEventPayload::ToJsonObject() const
 {
 	const TSharedPtr<FJsonObject> Props = MakeShared<FJsonObject>();
 
@@ -27,5 +27,5 @@ TSharedRef<FJsonObject> FAptabaseEventPayload::ToJsonObject() const
 	const TSharedPtr<FJsonObject> Payload = FJsonObjectConverter::UStructToJsonObject(*this);
 	Payload->SetObjectField("props", Props);
 
-	return Payload.ToSharedRef();
+	return Payload;
 }

@@ -49,7 +49,7 @@ public:
 	 * @note in seconds
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics", meta = (Unit = "s"))
-	float SendInterval = 5.0f;
+	float SendInterval = 60.0f;
 	/**
 	 * @brief **DEBUG MODE**: How often the analytics provider will send the currently batched events to the backend
 	 * @note in seconds
