@@ -60,7 +60,10 @@ bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttrib
 		GameInstance->GetTimerManager().SetTimer(BatchEventTimerHandle, FTimerDelegate::CreateRaw(this, &FAptabaseAnalyticsProvider::FlushEvents), SendInterval, true);
 	}
 
-	SessionId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+	const int64 EpochInSeconds = FDateTime::UtcNow().ToUnixTimestamp();
+	const int Random = FMath::RandRange(0, 99999999);
+	const FString RandomString = FString::Printf(TEXT("%08d"), Random);
+	SessionId = FString::Printf(TEXT("%lld%s"), EpochInSeconds, *RandomString);
 
 	bHasActiveSession = true;
 	return true;
