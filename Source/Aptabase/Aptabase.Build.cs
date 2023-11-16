@@ -4,22 +4,24 @@ public class Aptabase : ModuleRules
 {
 	public Aptabase(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PublicDependencyModuleNames.AddRange(new string[]{
-			"Core", 
-			"Analytics",
-		});
-
 		PrivateDependencyModuleNames.AddRange(new string[]{
+			"Analytics",
+			"Core", 
 			"CoreUObject",
+			"DeveloperSettings",
 			"Engine",
 			"EngineSettings",
-			"Slate",
 			"HTTP",
 			"Json",
 			"JsonUtilities",
 			"Projects",
+			"Slate",
 			"SlateCore",
-			"DeveloperSettings",
 		});
+
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("UnrealEd");
+		}
 	}
 }

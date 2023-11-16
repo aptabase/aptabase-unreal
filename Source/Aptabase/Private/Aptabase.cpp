@@ -1,5 +1,6 @@
 ﻿#include "Aptabase.h"
 
+#include <Editor.h>
 #include <Framework/Application/SlateApplication.h>
 #include <Modules/ModuleManager.h>
 
@@ -19,6 +20,10 @@ void FAptabaseModule::StartupModule()
 		FSlateApplication& Application = FSlateApplication::Get();
 		Application.OnPreShutdown().AddRaw(this, &FAptabaseModule::OnApplicationShutdown);
 	}
+
+#ifdef WITH_EDITOR
+	FEditorDelegates::EndPIE.AddRaw(this, &FAptabaseModule::OnEndPIE);
+#endif
 }
 
 void FAptabaseModule::ShutdownModule()
@@ -28,6 +33,10 @@ void FAptabaseModule::ShutdownModule()
 		FSlateApplication& Application = FSlateApplication::Get();
 		Application.OnPreShutdown().RemoveAll(this);
 	}
+
+#ifdef WITH_EDITOR
+	FEditorDelegates::EndPIE.RemoveAll(this);
+#endif
 }
 
 void FAptabaseModule::OnApplicationShutdown()
@@ -39,5 +48,15 @@ void FAptabaseModule::OnApplicationShutdown()
 
 	AnalyticsProvider.Reset();
 }
+
+#ifdef WITH_EDITOR
+void FAptabaseModule::OnEndPIE(bool bIsSimulating)
+{
+	if (AnalyticsProvider.IsValid())
+	{
+		AnalyticsProvider->EndSession();
+	}
+}
+#endif
 
 IMPLEMENT_MODULE(FAptabaseModule, Aptabase);
