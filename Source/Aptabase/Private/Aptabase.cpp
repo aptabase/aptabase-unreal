@@ -1,10 +1,10 @@
 ﻿#include "Aptabase.h"
 
+#include <Editor.h>
 #include <Framework/Application/SlateApplication.h>
 #include <Modules/ModuleManager.h>
 
 #include "AptabaseAnalyticsProvider.h"
-#include "Editor.h"
 
 TSharedPtr<IAnalyticsProvider> FAptabaseModule::CreateAnalyticsProvider(const FAnalyticsProviderConfigurationDelegate& GetConfigValue) const
 {
