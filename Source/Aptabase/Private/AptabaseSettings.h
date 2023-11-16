@@ -45,23 +45,17 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics", meta = (EditCondition = "Host == EAptabaseHost::SH", EditConditionHides))
 	FString CustomHost;
 	/**
-	 * @brief If enabled, the analytics provider will batch multiple events and periodically send them at a fixed interval.
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics")
-	bool bBatchEvents = true;
-	/**
 	 * @brief How often the analytics provider will send the currently batched events to the backend
 	 * @note in seconds
 	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics", meta = (Unit = "s", EditCondition = "bBatchEvents", EditConditionHides))
+	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics", meta = (Unit = "s"))
 	float SendInterval = 5.0f;
 	/**
 	 * @brief **DEBUG MODE**: How often the analytics provider will send the currently batched events to the backend
 	 * @note in seconds
 	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics", meta = (Unit = "s", EditCondition = "bBatchEvents", EditConditionHides))
+	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics", meta = (Unit = "s"))
 	float DebugSendInterval = 2.0f;
-
 
 private:
 	// Begin UDeveloperSettings interface

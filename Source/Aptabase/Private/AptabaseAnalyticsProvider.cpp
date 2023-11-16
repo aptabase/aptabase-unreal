@@ -54,11 +54,8 @@ bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttrib
 	}
 
 	const UAptabaseSettings* Settings = GetDefault<UAptabaseSettings>();
-	if (Settings->bBatchEvents)
-	{
-		const float SendInterval = IsInReleaseMode() ? Settings->SendInterval : Settings->DebugSendInterval;
-		GameInstance->GetTimerManager().SetTimer(BatchEventTimerHandle, FTimerDelegate::CreateRaw(this, &FAptabaseAnalyticsProvider::FlushEvents), SendInterval, true);
-	}
+	const float SendInterval = IsInReleaseMode() ? Settings->SendInterval : Settings->DebugSendInterval;
+	GameInstance->GetTimerManager().SetTimer(BatchEventTimerHandle, FTimerDelegate::CreateRaw(this, &FAptabaseAnalyticsProvider::FlushEvents), SendInterval, true);
 
 	const int64 EpochInSeconds = FDateTime::UtcNow().ToUnixTimestamp();
 	const int Random = FMath::RandRange(0, 99999999);
@@ -155,17 +152,8 @@ void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, c
 	EventPayload.SystemProps.OsVersion = FPlatformMisc::GetOSVersion();
 	EventPayload.SystemProps.IsDebug = !IsInReleaseMode();
 
-	const UAptabaseSettings* Settings = GetDefault<UAptabaseSettings>();
-	if (Settings->bBatchEvents)
-	{
-		UE_LOG(LogAptabase, Verbose, TEXT("Batch event (%s) for later."), *EventName);
-		BatchedEvents.Emplace(EventPayload);
-	}
-	else
-	{
-		UE_LOG(LogAptabase, Verbose, TEXT("Sending event (%s) now."), *EventName);
-		SendEventNow(EventPayload);
-	}
+	UE_LOG(LogAptabase, Verbose, TEXT("Batching event (%s) for next flush."), *EventName);
+	BatchedEvents.Emplace(EventPayload);
 }
 
 void FAptabaseAnalyticsProvider::SendEventNow(const FAptabaseEventPayload& EventPayload)
