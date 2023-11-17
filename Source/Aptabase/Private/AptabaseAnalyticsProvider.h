@@ -3,12 +3,14 @@
 #include <Interfaces/IAnalyticsProvider.h>
 #include <Interfaces/IHttpRequest.h>
 
+#include "AptabaseData.h"
+
 struct FExtendedAnalyticsEventAttribute;
 
 /**
  *  Implementation of Aptabase Analytics provider
  */
-class FAptabaseAnalyticsProvider : public IAnalyticsProvider
+class FAptabaseAnalyticsProvider final : public IAnalyticsProvider
 {
 public:
 	/**
@@ -28,13 +30,17 @@ private:
 	virtual void RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes) override;
 	// End IAnalyticsProvider Interface
 	/**
+	 * @brief Instantly sends an Aptabase event to the backend
+	 */
+	void SendEventsNow(const TArray<FAptabaseEventPayload>& EventPayloads);
+	/**
 	 * Internal function for common code in recording events
 	 */
 	void RecordEventInternal(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes);
 	/**
 	 * @brief Callback executed when an event is successfully recoded by the analytics backend.
 	 */
-	void OnEventRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
+	void OnEventsRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, TArray<FAptabaseEventPayload> OriginalEvents);
 	/**
 	 * @brief Current Id of the user, required by the IAnalyticsProvider interface
 	 * @warning Aptabase is a privacy-first solution and will NOT send the UserId to the backend.
@@ -48,4 +54,12 @@ private:
 	 * @brief Indicates if the user has an active session running.
 	 */
 	bool bHasActiveSession = false;
+	/**
+	 * @brief Timer Delegate handle for the periodically flushing of the batched events.
+	 */
+	FTimerHandle BatchEventTimerHandle;
+	/**
+	 * @brief Events we recoded but haven't sent to the backend yet. Waiting for next flush.
+	 */
+	TArray<FAptabaseEventPayload> BatchedEvents;
 };

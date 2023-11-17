@@ -4,7 +4,6 @@
 #include <HttpModule.h>
 #include <Interfaces/IHttpResponse.h>
 #include <Interfaces/IPluginManager.h>
-#include <JsonObjectConverter.h>
 #include <Kismet/GameplayStatics.h>
 #include <Kismet/KismetInternationalizationLibrary.h>
 
@@ -13,6 +12,33 @@
 #include "AptabaseSettings.h"
 #include "ExtendedAnalyticsEventAttribute.h"
 
+namespace
+{
+	UGameInstance* GetCurrentGameInstance()
+	{
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			if (Context.WorldType == EWorldType::PIE || Context.WorldType == EWorldType::Game)
+			{
+				if (UGameInstance* GameInstance = Context.OwningGameInstance)
+				{
+					return GameInstance;
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
+	bool IsInReleaseMode()
+	{
+		// TODO: This should be something more extensible/customizable.
+		//  Developers should be able to decide on the fly if they are running Debug/Release
+
+		return UE_BUILD_SHIPPING;
+	}
+} // namespace
+
 void FAptabaseAnalyticsProvider::RecordExtendedEvent(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes)
 {
 	RecordEventInternal(EventName, Attributes);
@@ -20,6 +46,17 @@ void FAptabaseAnalyticsProvider::RecordExtendedEvent(const FString& EventName, c
 
 bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttribute>& Attributes)
 {
+	const UGameInstance* GameInstance = GetCurrentGameInstance();
+	if (!ensure(GameInstance))
+	{
+		UE_LOG(LogAptabase, Warning, TEXT("Cannot start session: Invalid game instance."));
+		return false;
+	}
+
+	const UAptabaseSettings* Settings = GetDefault<UAptabaseSettings>();
+	const float SendInterval = IsInReleaseMode() ? Settings->SendInterval : Settings->DebugSendInterval;
+	GameInstance->GetTimerManager().SetTimer(BatchEventTimerHandle, FTimerDelegate::CreateRaw(this, &FAptabaseAnalyticsProvider::FlushEvents), SendInterval, true);
+
 	const int64 EpochInSeconds = FDateTime::UtcNow().ToUnixTimestamp();
 	const int Random = FMath::RandRange(0, 99999999);
 	const FString RandomString = FString::Printf(TEXT("%08d"), Random);
@@ -31,6 +68,17 @@ bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttrib
 
 void FAptabaseAnalyticsProvider::EndSession()
 {
+	if (BatchEventTimerHandle.IsValid())
+	{
+		if (const UGameInstance* GameInstance = GetCurrentGameInstance())
+		{
+			GameInstance->GetTimerManager().ClearTimer(BatchEventTimerHandle);
+		}
+	}
+
+	// Send any leftover events if any before closing the active session
+	FlushEvents();
+
 	bHasActiveSession = false;
 }
 
@@ -47,7 +95,22 @@ bool FAptabaseAnalyticsProvider::SetSessionID(const FString& InSessionID)
 
 void FAptabaseAnalyticsProvider::FlushEvents()
 {
-	UE_LOG(LogAptabase, Log, TEXT("Aptabase implementation doesn't cache events"));
+	UE_LOG(LogAptabase, Verbose, TEXT("Flushing %s batched events."), *LexToString(BatchedEvents.Num()));
+
+	TArrayView<FAptabaseEventPayload> EventsToProcess = BatchedEvents;
+
+	while (!EventsToProcess.IsEmpty())
+	{
+		constexpr int32 NumEventsPerRequest = 25;
+
+		TArray<FAptabaseEventPayload> CurrentBatch;
+		CurrentBatch.Append(EventsToProcess.Left(NumEventsPerRequest));
+
+		EventsToProcess.RightChopInline(NumEventsPerRequest);
+		SendEventsNow(CurrentBatch);
+	}
+
+	BatchedEvents.Empty();
 }
 
 void FAptabaseAnalyticsProvider::SetUserID(const FString& InUserID)
@@ -83,50 +146,45 @@ void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, c
 		return;
 	}
 
-	const UAptabaseSettings* Settings = GetDefault<UAptabaseSettings>();
 	const TSharedPtr<IPlugin> AptabasePlugin = IPluginManager::Get().FindPlugin("Aptabase");
 
 	FAptabaseEventPayload EventPayload;
 	EventPayload.EventName = EventName;
 	EventPayload.SessionId = SessionId;
+	EventPayload.EventAttributes = Attributes;
 	EventPayload.TimeStamp = FDateTime::UtcNow().ToIso8601();
 	EventPayload.SystemProps.Locale = UKismetInternationalizationLibrary::GetCurrentLocale();
 	EventPayload.SystemProps.AppVersion = GetDefault<UGeneralProjectSettings>()->ProjectVersion;
 	EventPayload.SystemProps.SdkVersion = FString::Printf(TEXT("aptabase-unreal@%s"), *AptabasePlugin->GetDescriptor().VersionName);
 	EventPayload.SystemProps.OsName = UGameplayStatics::GetPlatformName();
 	EventPayload.SystemProps.OsVersion = FPlatformMisc::GetOSVersion();
-	EventPayload.SystemProps.IsDebug = !UE_BUILD_SHIPPING;
+	EventPayload.SystemProps.IsDebug = !IsInReleaseMode();
 
-	const TSharedPtr<FJsonObject> Props = MakeShared<FJsonObject>();
+	UE_LOG(LogAptabase, Verbose, TEXT("Batching event (%s) for next flush."), *EventName);
+	BatchedEvents.Emplace(EventPayload);
+}
 
-	for (const FExtendedAnalyticsEventAttribute& Attribute : Attributes)
+void FAptabaseAnalyticsProvider::SendEventsNow(const TArray<FAptabaseEventPayload>& EventPayloads)
+{
+	TArray<TSharedPtr<FJsonValue>> Events;
+
+	UE_LOG(LogAptabase, VeryVerbose, TEXT("Sending batch containing:"));
+	for (const FAptabaseEventPayload& EventPayload : EventPayloads)
 	{
-		const auto& AttributeValue = Attribute.Value;
+		UE_LOG(LogAptabase, VeryVerbose, TEXT("Event: %s"), *EventPayload.EventName);
+		const TSharedPtr<FJsonObject>& JsonPayload = EventPayload.ToJsonObject();
 
-		if (AttributeValue.IsType<double>())
-		{
-			Props->SetField(Attribute.Key, MakeShared<FJsonValueNumber>(AttributeValue.Get<double>()));
-		}
-		else if (AttributeValue.IsType<float>())
-		{
-			Props->SetField(Attribute.Key, MakeShared<FJsonValueNumber>(AttributeValue.Get<float>()));
-		}
-		else
-		{
-			Props->SetField(Attribute.Key, MakeShared<FJsonValueString>(AttributeValue.Get<FString>()));
-		}
+		Events.Add(MakeShared<FJsonValueObject>(JsonPayload));
 	}
 
-	const FString RequestUrl = FString::Printf(TEXT("%s/api/v0/event"), *Settings->GetApiUrl());
+	const UAptabaseSettings* Settings = GetDefault<UAptabaseSettings>();
+
+	const FString RequestUrl = FString::Printf(TEXT("%s/api/v0/events"), *Settings->GetApiUrl());
 
 	FString RequestJsonPayload;
-	const TSharedPtr<FJsonObject> Payload = FJsonObjectConverter::UStructToJsonObject(EventPayload);
-	Payload->SetObjectField("props", Props);
 
 	const TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&RequestJsonPayload, 0);
-	FJsonSerializer::Serialize(Payload.ToSharedRef(), JsonWriter);
-
-	UE_LOG(LogAptabase, Verbose, TEXT("Sending event: %s to %s Payload: %s"), *EventName, *RequestUrl, *RequestJsonPayload);
+	FJsonSerializer::Serialize(Events, JsonWriter);
 
 	const FHttpRequestRef HttpRequest = FHttpModule::Get().CreateRequest();
 	HttpRequest->SetVerb("POST");
@@ -134,11 +192,11 @@ void FAptabaseAnalyticsProvider::RecordEventInternal(const FString& EventName, c
 	HttpRequest->SetHeader(TEXT("App-Key"), Settings->AppKey);
 	HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	HttpRequest->SetURL(RequestUrl);
-	HttpRequest->OnProcessRequestComplete().BindRaw(this, &FAptabaseAnalyticsProvider::OnEventRecoded);
+	HttpRequest->OnProcessRequestComplete().BindRaw(this, &FAptabaseAnalyticsProvider::OnEventsRecoded, EventPayloads);
 	HttpRequest->ProcessRequest();
 }
 
-void FAptabaseAnalyticsProvider::OnEventRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
+void FAptabaseAnalyticsProvider::OnEventsRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, TArray<FAptabaseEventPayload> OriginalEvents)
 {
 	if (!bWasSuccessful)
 	{
@@ -146,11 +204,23 @@ void FAptabaseAnalyticsProvider::OnEventRecoded(FHttpRequestPtr Request, FHttpRe
 		return;
 	}
 
-	if (!EHttpResponseCodes::IsOk(Response->GetResponseCode()))
+	const auto ResponseCode = Response->GetResponseCode();
+	if (!EHttpResponseCodes::IsOk(ResponseCode))
 	{
 		UE_LOG(LogAptabase, Error, TEXT("Request to record the event received unexpected code: %s"), *LexToString(Response->GetResponseCode()));
+
+		if (ResponseCode >= 400 && ResponseCode < 500)
+		{
+			UE_LOG(LogAptabase, Error, TEXT("Data was sent in the wrong format. Event will be skipped."))
+		}
+		else if (ResponseCode >= 500)
+		{
+			UE_LOG(LogAptabase, Error, TEXT("Server-side issue. Event will be re-queued."))
+			BatchedEvents.Append(OriginalEvents);
+		}
+
 		return;
 	}
 
-	UE_LOG(LogAptabase, Verbose, TEXT("Event recorded successfully."));
+	UE_LOG(LogAptabase, VeryVerbose, TEXT("Event recorded successfully."));
 }

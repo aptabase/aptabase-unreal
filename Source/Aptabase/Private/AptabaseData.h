@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "ExtendedAnalyticsEventAttribute.h"
+
 #include "AptabaseData.generated.h"
 
 /**
@@ -80,4 +82,14 @@ struct FAptabaseEventPayload
 	 */
 	UPROPERTY()
 	FAptabaseSystemProperties SystemProps;
+
+	/**
+	 * @brief Additional Event attributes to be sent along-side the main properties
+	 */
+	TArray<FExtendedAnalyticsEventAttribute> EventAttributes;
+
+	/**
+	 * @brief Converts the current data to a JSON payload for the backend HTTP requests
+	 */
+	TSharedPtr<FJsonObject> ToJsonObject() const;
 };
