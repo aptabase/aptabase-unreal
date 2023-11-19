@@ -36,6 +36,10 @@ Then you have to set it inside `Project Settings → Analytics → Aptabase` ins
 
 Based on the key, your `Host` will be selected. In the case of self-hosted versions, you will get an input field to enter your custom URL.
 
+Also, here you can adjust how often events will be sent to the backend.
+
+**Send Interval** is used in *Release Mode*, while **Debug Send Interval** is used in *Debug Mode*. Both are measured in seconds.
+
 ![Project Settings](Docs/project-settings.png)
 
 ## Usage
