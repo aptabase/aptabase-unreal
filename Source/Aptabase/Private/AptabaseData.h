@@ -4,6 +4,8 @@
 
 #include "AptabaseData.generated.h"
 
+class FJsonObject;
+
 /**
  * @brief Properties of the user's system
  */

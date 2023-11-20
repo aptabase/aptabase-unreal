@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine/TimerHandle.h>
 #include <Interfaces/IAnalyticsProvider.h>
 #include <Interfaces/IHttpRequest.h>
 

@@ -1,11 +1,16 @@
 #include "AptabaseAnalyticsProvider.h"
 
+#include <Dom/JsonValue.h>
+#include <Engine/Engine.h>
+#include <Engine/GameInstance.h>
 #include <GeneralProjectSettings.h>
 #include <HttpModule.h>
 #include <Interfaces/IHttpResponse.h>
 #include <Interfaces/IPluginManager.h>
 #include <Kismet/GameplayStatics.h>
 #include <Kismet/KismetInternationalizationLibrary.h>
+#include <Serialization/JsonSerializer.h>
+#include <TimerManager.h>
 
 #include "AptabaseData.h"
 #include "AptabaseLog.h"

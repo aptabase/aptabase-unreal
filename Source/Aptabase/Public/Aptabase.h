@@ -18,7 +18,7 @@ public:
 	 * @note We will clean up the analytics provider and end the session if it's left running.
 	 */
 	void OnApplicationShutdown();
-#ifdef WITH_EDITOR
+#if WITH_EDITOR
 	/**
 	 * @brief Callback executed when the Play-in-Editor session ended.
 	 * @note We will end the session here to ensure it is not left running.
