@@ -3,7 +3,7 @@ name: Plugin CD
 on:
   push:
     tags:
-      - 'v*'
+      - '*'
 
 jobs:
   plugin-cd:
