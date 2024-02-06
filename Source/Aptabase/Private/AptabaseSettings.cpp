@@ -58,7 +58,7 @@ void UAptabaseSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 
 		Host = static_cast<EAptabaseHost>(EnumValue);
 
-		SaveConfig();
+		SaveConfig(CPF_Config, *GetDefaultConfigFilename());
 	}
 }
 #endif
