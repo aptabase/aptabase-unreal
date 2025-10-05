@@ -29,6 +29,10 @@ private:
 	virtual void SetUserID(const FString& InUserID) override;
 	virtual FString GetUserID() const override;
 	virtual void RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes) override;
+	virtual void SetDefaultEventAttributes(TArray<FAnalyticsEventAttribute>&& Attributes) override;
+	virtual TArray<FAnalyticsEventAttribute> GetDefaultEventAttributesSafe() const override;
+	virtual int32 GetDefaultEventAttributeCount() const override;
+	virtual FAnalyticsEventAttribute GetDefaultEventAttribute(int AttributeIndex) const override;
 	// End IAnalyticsProvider Interface
 	/**
 	 * @brief Instantly sends an Aptabase event to the backend
@@ -63,4 +67,8 @@ private:
 	 * @brief Events we recoded but haven't sent to the backend yet. Waiting for next flush.
 	 */
 	TArray<FAptabaseEventPayload> BatchedEvents;
+	/**
+	 * @brief Default event attributes that will be added to all events
+	 */
+	TArray<FAnalyticsEventAttribute> DefaultEventAttributes;
 };

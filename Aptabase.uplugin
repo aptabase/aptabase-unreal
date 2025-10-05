@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"VersionName": "0",
-	"EngineVersion": "5.3",
+	"VersionName": "0.2.0",
+	"EngineVersion": "5.6",
 	"FriendlyName": "Aptabase",
 	"Description": "Open Source, Privacy-First and Simple Analytics for Mobile, Desktop and Web Apps",
 	"Category": "Analytics",
