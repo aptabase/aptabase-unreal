@@ -229,3 +229,29 @@ void FAptabaseAnalyticsProvider::OnEventsRecoded(FHttpRequestPtr Request, FHttpR
 
 	UE_LOG(LogAptabase, VeryVerbose, TEXT("Event recorded successfully."));
 }
+
+void FAptabaseAnalyticsProvider::SetDefaultEventAttributes(TArray<FAnalyticsEventAttribute>&& Attributes)
+{
+	DefaultEventAttributes = MoveTemp(Attributes);
+}
+
+TArray<FAnalyticsEventAttribute> FAptabaseAnalyticsProvider::GetDefaultEventAttributesSafe() const
+{
+	return DefaultEventAttributes;
+}
+
+int32 FAptabaseAnalyticsProvider::GetDefaultEventAttributeCount() const
+{
+	return DefaultEventAttributes.Num();
+}
+
+FAnalyticsEventAttribute FAptabaseAnalyticsProvider::GetDefaultEventAttribute(int AttributeIndex) const
+{
+	if (DefaultEventAttributes.IsValidIndex(AttributeIndex))
+	{
+		return DefaultEventAttributes[AttributeIndex];
+	}
+	
+	UE_LOG(LogAptabase, Warning, TEXT("Requested default event attribute index %d is out of bounds (count: %d)"), AttributeIndex, DefaultEventAttributes.Num());
+	return FAnalyticsEventAttribute();
+}
