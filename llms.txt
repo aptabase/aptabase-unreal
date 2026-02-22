@@ -1,0 +1,89 @@
+# Aptabase Unreal Engine SDK
+
+> Unreal Engine plugin for Aptabase — open-source, privacy-first analytics for games and apps. Tracks custom events with string and number properties. No PII collection. Supports UE 5.x on all major platforms.
+
+## Installation
+
+Clone this repository into your project's `Plugins` folder (requires a C++ project):
+
+```
+cd YourProject/Plugins
+git clone https://github.com/aptabase/aptabase-unreal.git Aptabase
+```
+
+Then enable the plugin:
+
+1. Open `Edit → Plugins` in the Unreal Editor
+2. Search for "Aptabase"
+3. Enable the plugin and restart the editor
+
+## Configuration
+
+Add to your `Config/DefaultEngine.ini`:
+
+```ini
+[Analytics]
+ProviderModuleName=Aptabase
+```
+
+Then configure in `Project Settings → Analytics → Aptabase`:
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| AppKey | FString | "" | Your app key from Aptabase dashboard (e.g., `A-EU-1234567890`) |
+| Host | EAptabaseHost | Auto | Auto-detected from AppKey: EU, US, DEV, or SH (self-hosted) |
+| CustomHost | FString | "" | URL for self-hosted instances (only when Host = SH) |
+| SendInterval | float | 60.0 | Seconds between batch flushes in Release mode |
+| DebugSendInterval | float | 2.0 | Seconds between batch flushes in Debug mode |
+
+If you already use another analytics provider, use the [Multicast Analytics Provider Plugin](https://docs.unrealengine.com/4.26/en-US/TestingAndOptimization/Analytics/Multicast/) to run both.
+
+## Track Events (C++)
+
+Use the `FAnalytics` module for provider-agnostic tracking:
+
+```cpp
+#include "Analytics.h"
+
+// Simple event
+FAnalytics::Get().GetDefaultConfiguredProvider()->RecordEvent(TEXT("app_launched"), {});
+
+// Event with properties (strings and numbers only)
+TArray<FAnalyticsEventAttribute> Attributes;
+Attributes.Emplace(TEXT("level"), 5);
+Attributes.Emplace(TEXT("character"), TEXT("warrior"));
+Attributes.Emplace(TEXT("score"), 9500.0);
+
+FAnalytics::Get().GetDefaultConfiguredProvider()->RecordEvent(TEXT("level_completed"), Attributes);
+```
+
+You can also use built-in complex event helpers:
+
+```cpp
+FAnalytics::Get().GetDefaultConfiguredProvider()->RecordCurrencyPurchase(
+    TEXT("Soft"), 5000, TEXT("EUR"), 20.0, TEXT("Apple")
+);
+```
+
+## Track Events (Blueprints)
+
+Use the [Blueprint Analytics Plugin](https://docs.unrealengine.com/4.27/en-US/TestingAndOptimization/Analytics/Blueprints/) for provider-agnostic Blueprint tracking:
+
+- **Record Event with Attributes** — custom event with key-value pairs
+- **Record Currency Purchase** — pre-built commerce event
+- Other standard `IAnalyticsProvider` nodes
+
+## Platform Notes
+
+- Supports all platforms supported by Unreal Engine 5
+- Events are batched and flushed on a timer (configurable via SendInterval)
+- The SDK auto-enhances events with OS, app version, and environment info
+- No automatic event tracking — all events must be recorded manually
+- Property values accept strings and numbers only
+- `RecordEvent` calls are non-blocking (run in background)
+- Session management is handled automatically via `StartSession`/`EndSession`
+
+## Cross-Discovery
+
+For a full list of Aptabase SDKs and documentation, see:
+https://aptabase.com/llms.txt
