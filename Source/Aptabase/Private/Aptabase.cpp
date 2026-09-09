@@ -31,6 +31,8 @@ void FAptabaseModule::StartupModule()
 
 void FAptabaseModule::ShutdownModule()
 {
+	OnApplicationShutdown();
+	AnalyticsProvider.Reset();
 	if (FSlateApplication::IsInitialized())
 	{
 		FSlateApplication& Application = FSlateApplication::Get();
@@ -48,8 +50,6 @@ void FAptabaseModule::OnApplicationShutdown()
 	{
 		AnalyticsProvider->EndSession();
 	}
-
-	AnalyticsProvider.Reset();
 }
 
 #if WITH_EDITOR

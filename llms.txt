@@ -1,6 +1,6 @@
 # Aptabase Unreal Engine SDK
 
-> Unreal Engine plugin for Aptabase — open-source, privacy-first analytics for games and apps. Tracks custom events with string and number properties. No PII collection. Supports UE 5.x on all major platforms.
+> Unreal Engine plugin for Aptabase — open-source, privacy-first analytics and error reporting for games and apps. Tracks custom events with string and number properties using anonymous sessions. Error text may contain application data supplied by callers or captured from opted-in logs. Supports UE 5.x on all major platforms.
 
 ## Installation
 
@@ -35,6 +35,7 @@ Then configure in `Project Settings → Analytics → Aptabase`:
 | CustomHost | FString | "" | URL for self-hosted instances (only when Host = SH) |
 | SendInterval | float | 60.0 | Seconds between batch flushes in Release mode |
 | DebugSendInterval | float | 2.0 | Seconds between batch flushes in Debug mode |
+| bEnableErrorLogging | bool | false | Capture Unreal Error/Fatal logs during active sessions |
 
 If you already use another analytics provider, use the [Multicast Analytics Provider Plugin](https://docs.unrealengine.com/4.26/en-US/TestingAndOptimization/Analytics/Multicast/) to run both.
 
@@ -72,6 +73,23 @@ Use the [Blueprint Analytics Plugin](https://docs.unrealengine.com/4.27/en-US/Te
 - **Record Event with Attributes** — custom event with key-value pairs
 - **Record Currency Purchase** — pre-built commerce event
 - Other standard `IAnalyticsProvider` nodes
+
+## Error Reporting (Beta)
+
+Start an Aptabase analytics session with the configured provider's `StartSession()` or the **Start Session** Blueprint node first. Add `"Aptabase"` to your C++ module dependencies.
+
+```cpp
+#include "AptabaseBlueprintLibrary.h"
+
+UAptabaseBlueprintLibrary::TrackError(TEXT("Save failed"), TEXT("SaveError"));
+UAptabaseBlueprintLibrary::TrackError(TEXT("Cannot continue"), TEXT("LoadError"), TEXT("original stack"), true);
+```
+
+Call on the game thread. The **Track Error** Blueprint node under **Analytics → Aptabase** exposes the same API. Manual reports are `handled`/`error`; setting `bFatal` gives `crash`/`fatal` without terminating the app. Stack traces are optional and must be supplied by the caller. Reports appear on the dashboard's Errors page with capture-time session, timestamp, OS, app/SDK versions, and debug mode.
+
+Opt in to **Enable Error Logging** in Project Settings, or set `bEnableErrorLogging=True` in `[/Script/Aptabase.AptabaseSettings]` in `Config/DefaultAptabase.ini`. Unreal Error logs become `unhandled`/`error` and Fatal logs reaching the listener become `crash`/`fatal`; the type is the log category and no stack is synthesized. Warnings and Aptabase/HTTP diagnostics are ignored. Capture ends with the session. Native crashes, signals, assertions bypassing the listener, and logs compiled out of Shipping builds are not captured; fatal delivery is best effort.
+
+Errors use individual `POST /api/v0/error` requests with an `App-Key` header. Network errors and HTTP 408/429/5xx are retried on later flushes; 403 quota exhaustion and other permanent failures are dropped. The queue is bounded to 25 outstanding reports with per-session deduplication and a cap of 100 unique errors. `FlushEvents()` also flushes errors. Pending reports live in memory only.
 
 ## Platform Notes
 
