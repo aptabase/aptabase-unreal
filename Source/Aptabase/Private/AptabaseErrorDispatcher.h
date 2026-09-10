@@ -5,14 +5,14 @@
 #include "AptabaseErrorQueue.h"
 #include <atomic>
 
-/** Captures on any thread; all HTTP work and lifecycle operations run on the game thread. */
+/** Queues manual reports from any thread; all HTTP work and lifecycle operations run on the game thread. */
 class FAptabaseErrorDispatcher : public TSharedFromThis<FAptabaseErrorDispatcher, ESPMode::ThreadSafe>
 {
 public:
 	~FAptabaseErrorDispatcher();
 	void StartSession(const FAptabaseErrorContext& Context);
 	void EndSession();
-	void TrackError(const FString& ErrorType, const FString& Message, const FString& StackTrace, bool bFatal, bool bAutomatic = false);
+	void TrackError(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal);
 	void Flush();
 
 private:

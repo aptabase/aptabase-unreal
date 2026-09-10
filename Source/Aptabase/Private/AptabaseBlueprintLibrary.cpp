@@ -13,7 +13,7 @@ void UAptabaseBlueprintLibrary::TrackError(const FString& ErrorMessage, const FS
 	{
 		if (Module->AnalyticsProvider.IsValid())
 		{
-			StaticCastSharedPtr<FAptabaseAnalyticsProvider>(Module->AnalyticsProvider)->TrackError(ErrorType, ErrorMessage, StackTrace, bFatal);
+			StaticCastSharedPtr<FAptabaseAnalyticsProvider>(Module->AnalyticsProvider)->TrackError(ErrorMessage, ErrorType, StackTrace, bFatal);
 		}
 	}
 }

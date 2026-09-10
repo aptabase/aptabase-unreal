@@ -4,6 +4,7 @@
 #include <Dom/JsonObject.h>
 #include <Misc/AutomationTest.h>
 
+#include "AptabaseCrashReporter.h"
 #include "AptabaseErrorQueue.h"
 
 namespace
@@ -27,7 +28,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAptabaseErrorPayloadTest, "Aptabase.Errors.Pay
 
 bool FAptabaseErrorPayloadTest::RunTest(const FString& Parameters)
 {
-	const FAptabaseErrorReport Report = FAptabaseErrorReport::Create(TEXT("SaveError"), TEXT("Disk full"), TEXT("SaveGame\nMain"), false, false, TestContext());
+	const FAptabaseErrorReport Report = FAptabaseErrorReport::Create(TEXT("Disk full"), TEXT("SaveError"), TEXT("SaveGame\nMain"), false, TestContext());
 	const auto Json = Report.ToJsonObject();
 	TestEqual(TEXT("Error type"), Json->GetStringField(TEXT("errorType")), FString(TEXT("SaveError")));
 	TestEqual(TEXT("Message"), Json->GetStringField(TEXT("errorMessage")), FString(TEXT("SaveError: Disk full")));
@@ -46,13 +47,11 @@ bool FAptabaseErrorPayloadTest::RunTest(const FString& Parameters)
 	FDateTime Timestamp;
 	TestTrue(TEXT("ISO timestamp"), FDateTime::ParseIso8601(*Json->GetStringField(TEXT("timestamp")), Timestamp));
 
-	const auto Fatal = FAptabaseErrorReport::Create(TEXT("LoadError"), TEXT("Missing assets"), TEXT(""), true, false, TestContext()).ToJsonObject();
+	const auto Fatal = FAptabaseErrorReport::Create(TEXT("Missing assets"), TEXT("LoadError"), TEXT(""), true, TestContext()).ToJsonObject();
 	TestEqual(TEXT("Fatal severity"), Fatal->GetStringField(TEXT("severity")), FString(TEXT("fatal")));
 	TestEqual(TEXT("Fatal kind"), Fatal->GetStringField(TEXT("kind")), FString(TEXT("crash")));
 	TestEqual(TEXT("Fatal prefix"), Fatal->GetStringField(TEXT("errorMessage")), FString(TEXT("Fatal LoadError: Missing assets")));
 	TestFalse(TEXT("Missing stack omitted"), Fatal->HasField(TEXT("stackTrace")));
-	const auto Automatic = FAptabaseErrorReport::Create(TEXT("LogGame"), TEXT("Failed"), TEXT(""), false, true, TestContext());
-	TestEqual(TEXT("Log error kind"), Automatic.Kind, FString(TEXT("unhandled")));
 	return true;
 }
 
@@ -63,7 +62,7 @@ bool FAptabaseErrorLimitsTest::RunTest(const FString& Parameters)
 	const FString LongValue = FString::ChrN(11000, TCHAR('x'));
 	auto Context = TestContext();
 	Context.SessionId = Context.OsName = Context.OsVersion = Context.AppVersion = Context.SdkVersion = LongValue;
-	const auto Json = FAptabaseErrorReport::Create(LongValue, LongValue, LongValue, true, false, Context).ToJsonObject();
+	const auto Json = FAptabaseErrorReport::Create(LongValue, LongValue, LongValue, true, Context).ToJsonObject();
 	TestEqual(TEXT("Message limit"), Json->GetStringField(TEXT("errorMessage")).Len(), 5000);
 	TestEqual(TEXT("Type limit"), Json->GetStringField(TEXT("errorType")).Len(), 100);
 	TestEqual(TEXT("Stack limit"), Json->GetStringField(TEXT("stackTrace")).Len(), 10000);
@@ -72,10 +71,10 @@ bool FAptabaseErrorLimitsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("OS version limit"), Json->GetStringField(TEXT("osVersion")).Len(), 100);
 	TestEqual(TEXT("App version limit"), Json->GetStringField(TEXT("appVersion")).Len(), 50);
 	TestEqual(TEXT("SDK version limit"), Json->GetStringField(TEXT("sdkVersion")).Len(), 40);
-	const auto Empty = FAptabaseErrorReport::Create(TEXT(" \t\n"), TEXT(""), TEXT(""), false, false, Context);
+	const auto Empty = FAptabaseErrorReport::Create(TEXT(""), TEXT(" \t\n"), TEXT(""), false, Context);
 	TestEqual(TEXT("Whitespace type fallback"), Empty.ErrorType, FString(TEXT("Error")));
 	TestEqual(TEXT("Empty message is still a valid report"), Empty.ErrorMessage, FString(TEXT("Error: ")));
-	const auto Padded = FAptabaseErrorReport::Create(FString::ChrN(101, TCHAR(' ')) + TEXT("Error"), TEXT("test"), TEXT(""), false, false, Context);
+	const auto Padded = FAptabaseErrorReport::Create(TEXT("test"), FString::ChrN(101, TCHAR(' ')) + TEXT("Error"), TEXT(""), false, Context);
 	TestEqual(TEXT("Trim before truncating so the type remains valid"), Padded.ErrorType, FString(TEXT("Error")));
 	return true;
 }
@@ -88,7 +87,7 @@ bool FAptabaseErrorRetryTest::RunTest(const FString& Parameters)
 	{
 		FAptabaseErrorQueue Queue;
 		Queue.StartSession(TestContext());
-		Queue.Enqueue(TEXT("NetworkError"), TEXT("Offline"), TEXT("original stack"), false, false);
+		Queue.Enqueue(TEXT("Offline"), TEXT("NetworkError"), TEXT("original stack"), false);
 		const auto Batch = Queue.TakeBatch();
 		if (!TestEqual(TEXT("One initial report"), Batch.Num(), 1))
 		{
@@ -120,18 +119,18 @@ bool FAptabaseErrorCapacityTest::RunTest(const FString& Parameters)
 {
 	FAptabaseErrorQueue Queue;
 	Queue.StartSession(TestContext());
-	TestTrue(TEXT("First occurrence accepted"), Queue.Enqueue(TEXT("Error"), TEXT("Repeated"), TEXT("stack"), false, false));
-	TestFalse(TEXT("Duplicate suppressed"), Queue.Enqueue(TEXT("Error"), TEXT("Repeated"), TEXT("stack"), false, false));
-	TestTrue(TEXT("Fatal has separate identity"), Queue.Enqueue(TEXT("Error"), TEXT("Repeated"), TEXT("stack"), true, false));
-	TestTrue(TEXT("Automatic has separate identity"), Queue.Enqueue(TEXT("Error"), TEXT("Repeated"), TEXT("stack"), false, true));
-	TestTrue(TEXT("Different stack has separate identity"), Queue.Enqueue(TEXT("Error"), TEXT("Repeated"), TEXT("other stack"), false, false));
+	TestTrue(TEXT("First occurrence accepted"), Queue.Enqueue(TEXT("Repeated"), TEXT("Error"), TEXT("stack"), false));
+	TestFalse(TEXT("Duplicate suppressed"), Queue.Enqueue(TEXT("Repeated"), TEXT("Error"), TEXT("stack"), false));
+	TestTrue(TEXT("Fatal has separate identity"), Queue.Enqueue(TEXT("Repeated"), TEXT("Error"), TEXT("stack"), true));
+	TestTrue(TEXT("Different type has separate identity"), Queue.Enqueue(TEXT("Repeated"), TEXT("OtherError"), TEXT("stack"), false));
+	TestTrue(TEXT("Different stack has separate identity"), Queue.Enqueue(TEXT("Repeated"), TEXT("Error"), TEXT("other stack"), false));
 	for (int32 Index = 4; Index < FAptabaseErrorQueue::MaxPendingReports; ++Index)
 	{
-		TestTrue(TEXT("Queue space available"), Queue.Enqueue(TEXT("Error"), FString::FromInt(Index), TEXT(""), false, false));
+		TestTrue(TEXT("Queue space available"), Queue.Enqueue(FString::FromInt(Index), TEXT("Error"), TEXT(""), false));
 	}
 	const auto Batch = Queue.TakeBatch();
 	TestEqual(TEXT("Full batch"), Batch.Num(), 25);
-	TestFalse(TEXT("In-flight reports count towards capacity"), Queue.Enqueue(TEXT("Error"), TEXT("Overflow"), TEXT(""), false, false));
+	TestFalse(TEXT("In-flight reports count towards capacity"), Queue.Enqueue(TEXT("Overflow"), TEXT("Error"), TEXT(""), false));
 	for (const auto& Report : Batch)
 	{
 		Queue.Complete(Report, false, 0);
@@ -142,7 +141,7 @@ bool FAptabaseErrorCapacityTest::RunTest(const FString& Parameters)
 	{
 		Queue.Complete(Report, true, 202);
 	}
-	TestTrue(TEXT("Overflow can be reported once capacity is available"), Queue.Enqueue(TEXT("Error"), TEXT("Overflow"), TEXT(""), false, false));
+	TestTrue(TEXT("Overflow can be reported once capacity is available"), Queue.Enqueue(TEXT("Overflow"), TEXT("Error"), TEXT(""), false));
 	return true;
 }
 
@@ -151,11 +150,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAptabaseErrorSessionTest, "Aptabase.Errors.Ses
 bool FAptabaseErrorSessionTest::RunTest(const FString& Parameters)
 {
 	FAptabaseErrorQueue Queue;
-	TestFalse(TEXT("No capture before session"), Queue.Enqueue(TEXT("Error"), TEXT("test"), TEXT(""), false, false));
+	TestFalse(TEXT("No capture before session"), Queue.Enqueue(TEXT("test"), TEXT("Error"), TEXT(""), false));
 	Queue.StartSession(TestContext());
 	for (int32 Index = 0; Index < FAptabaseErrorQueue::MaxUniqueErrorsPerSession; ++Index)
 	{
-		TestTrue(TEXT("Unique report accepted"), Queue.Enqueue(TEXT("Error"), FString::FromInt(Index), TEXT(""), false, false));
+		TestTrue(TEXT("Unique report accepted"), Queue.Enqueue(FString::FromInt(Index), TEXT("Error"), TEXT(""), false));
 		const auto Batch = Queue.TakeBatch();
 		if (Batch.Num() != 1)
 		{
@@ -163,11 +162,11 @@ bool FAptabaseErrorSessionTest::RunTest(const FString& Parameters)
 		}
 		Queue.Complete(Batch[0], true, 202);
 	}
-	TestFalse(TEXT("Session cap applies after delivery"), Queue.Enqueue(TEXT("Error"), TEXT("Over cap"), TEXT(""), false, false));
+	TestFalse(TEXT("Session cap applies after delivery"), Queue.Enqueue(TEXT("Over cap"), TEXT("Error"), TEXT(""), false));
 	Queue.EndSession();
-	TestFalse(TEXT("No capture after session"), Queue.Enqueue(TEXT("Error"), TEXT("Stopped"), TEXT(""), false, false));
+	TestFalse(TEXT("No capture after session"), Queue.Enqueue(TEXT("Stopped"), TEXT("Error"), TEXT(""), false));
 	Queue.StartSession(TestContext());
-	TestTrue(TEXT("New session resets deduplication"), Queue.Enqueue(TEXT("Error"), TEXT("0"), TEXT(""), false, false));
+	TestTrue(TEXT("New session resets deduplication"), Queue.Enqueue(TEXT("0"), TEXT("Error"), TEXT(""), false));
 	const auto OldBatch = Queue.TakeBatch();
 	if (OldBatch.Num() != 1)
 	{
@@ -208,7 +207,7 @@ bool FAptabaseErrorThreadTest::RunTest(const FString& Parameters)
 			{
 				for (int32 Index = 0; Index < 100; ++Index)
 				{
-					Queue.Enqueue(TEXT("LogGame"), FString::FromInt(Index), TEXT(""), false, true);
+					Queue.Enqueue(FString::FromInt(Index), TEXT("WorkerError"), TEXT(""), false);
 				}
 			}
 		));
@@ -225,6 +224,45 @@ bool FAptabaseErrorThreadTest::RunTest(const FString& Parameters)
 		Fingerprints.Add(Report.GetFingerprint());
 	}
 	TestEqual(TEXT("Concurrent duplicates suppressed"), Fingerprints.Num(), Batch.Num());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAptabaseCrashReportTest, "Aptabase.Errors.CrashReport", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FAptabaseCrashReportTest::RunTest(const FString& Parameters)
+{
+	// Fatal log / assert as written to GErrorHist: heading, location, message, blank line, call stack.
+	const auto Assert = FAptabaseCrashReporter::CreateReport(
+		TEXT("Assertion failed: Ptr != nullptr [File:D:/Game/Source/Player.cpp] [Line: 42] \r\nPlayer has no pawn\r\n\r\n0x00007ff6 Game.exe!APlayer::Tick()\r\n0x00007ff7 Game.exe!AActor::TickActor()"),
+		TestContext()
+	);
+	TestEqual(TEXT("Assert type"), Assert.ErrorType, FString(TEXT("AssertionFailed")));
+	TestEqual(TEXT("Assert message"), Assert.ErrorMessage, FString(TEXT("Fatal AssertionFailed: Ptr != nullptr [File:D:/Game/Source/Player.cpp] [Line: 42] \nPlayer has no pawn")));
+	TestEqual(TEXT("Assert stack"), Assert.StackTrace, FString(TEXT("0x00007ff6 Game.exe!APlayer::Tick()\n0x00007ff7 Game.exe!AActor::TickActor()")));
+	TestEqual(TEXT("Crash severity"), Assert.Severity, FString(TEXT("fatal")));
+	TestEqual(TEXT("Crash kind"), Assert.Kind, FString(TEXT("crash")));
+	TestEqual(TEXT("Session context"), Assert.Context.SessionId, TestContext().SessionId);
+
+	const auto Fatal = FAptabaseCrashReporter::CreateReport(TEXT("Fatal error: [File:Main.cpp] [Line: 7] \nOut of memory\n\n[Callstack] 0x1 Game!Main()"), TestContext());
+	TestEqual(TEXT("Fatal type"), Fatal.ErrorType, FString(TEXT("FatalError")));
+	TestEqual(TEXT("Fatal message"), Fatal.ErrorMessage, FString(TEXT("Fatal FatalError: [File:Main.cpp] [Line: 7] \nOut of memory")));
+	TestEqual(TEXT("Fatal stack"), Fatal.StackTrace, FString(TEXT("[Callstack] 0x1 Game!Main()")));
+
+	// Crash description without the blank line still splits at the first frame.
+	const auto Crash = FAptabaseCrashReporter::CreateReport(TEXT("Unhandled Exception: EXCEPTION_ACCESS_VIOLATION reading address 0x0\n0x00007ff6 Game.exe!Foo()"), TestContext());
+	TestEqual(TEXT("Exception type"), Crash.ErrorType, FString(TEXT("UnhandledException")));
+	TestEqual(TEXT("Exception message"), Crash.ErrorMessage, FString(TEXT("Fatal UnhandledException: EXCEPTION_ACCESS_VIOLATION reading address 0x0")));
+	TestEqual(TEXT("Exception stack"), Crash.StackTrace, FString(TEXT("0x00007ff6 Game.exe!Foo()")));
+
+	// Unknown formats are reported verbatim under a generic type; a location-only heading is not a type.
+	const auto Plain = FAptabaseCrashReporter::CreateReport(TEXT("[File:X.cpp] [Line: 1] something broke"), TestContext());
+	TestEqual(TEXT("Generic type"), Plain.ErrorType, FString(TEXT("FatalError")));
+	TestEqual(TEXT("Verbatim message"), Plain.ErrorMessage, FString(TEXT("Fatal FatalError: [File:X.cpp] [Line: 1] something broke")));
+	TestTrue(TEXT("No stack"), Plain.StackTrace.IsEmpty());
+
+	const auto Empty = FAptabaseCrashReporter::CreateReport(TEXT(""), TestContext());
+	TestEqual(TEXT("Empty history still yields a valid report"), Empty.ErrorMessage, FString(TEXT("Fatal FatalError: Fatal error without details")));
+	TestEqual(TEXT("Empty history keeps the generic type"), Empty.ErrorType, FString(TEXT("FatalError")));
 	return true;
 }
 

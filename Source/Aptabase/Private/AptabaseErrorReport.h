@@ -4,7 +4,7 @@
 
 class FJsonObject;
 
-/** Context copied on the game thread at session start; safe to use from log callbacks. */
+/** Context copied on the game thread at session start; safe to use from any thread, including the error handler. */
 struct FAptabaseErrorContext
 {
 	FString SessionId;
@@ -20,7 +20,7 @@ struct FAptabaseErrorContext
 /** One immutable POST /api/v0/error body, enriched and limited at capture time. */
 struct FAptabaseErrorReport
 {
-	static FAptabaseErrorReport Create(const FString& ErrorType, const FString& Message, const FString& StackTrace, bool bFatal, bool bAutomatic, const FAptabaseErrorContext& Context);
+	static FAptabaseErrorReport Create(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal, const FAptabaseErrorContext& Context);
 
 	FString ErrorType;
 	FString ErrorMessage;

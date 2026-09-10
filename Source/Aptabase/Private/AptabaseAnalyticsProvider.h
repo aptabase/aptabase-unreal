@@ -8,7 +8,7 @@
 
 struct FExtendedAnalyticsEventAttribute;
 class FAptabaseErrorDispatcher;
-class FAptabaseErrorLog;
+class FAptabaseCrashReporter;
 
 /**
  *  Implementation of Aptabase Analytics provider
@@ -18,7 +18,7 @@ class FAptabaseAnalyticsProvider final : public IAnalyticsProvider
 public:
 	FAptabaseAnalyticsProvider();
 	virtual ~FAptabaseAnalyticsProvider() override;
-	void TrackError(const FString& ErrorType, const FString& Message, const FString& StackTrace, bool bFatal);
+	void TrackError(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal);
 
 	/**
 	 * Overload for RecordEvent that takes an array of ExtendedAttributes
@@ -78,6 +78,6 @@ private:
 	 */
 	TArray<FAnalyticsEventAttribute> DefaultEventAttributes;
 	TSharedPtr<FAptabaseErrorDispatcher, ESPMode::ThreadSafe> ErrorDispatcher;
-	TUniquePtr<FAptabaseErrorLog> ErrorLog;
+	TUniquePtr<FAptabaseCrashReporter> CrashReporter;
 	TArray<FHttpRequestPtr> EventRequests;
 };

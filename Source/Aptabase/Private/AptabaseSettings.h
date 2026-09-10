@@ -57,11 +57,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Analytics", meta = (Unit = "s"))
 	float DebugSendInterval = 2.0f;
 	/**
-	 * Automatically report engine Error/Fatal log messages during an active session.
-	 * Warnings and Aptabase/HTTP diagnostics are excluded. Native crashes are not intercepted.
+	 * Report fatal errors (asserts, Fatal logs and crashes handled by the engine's error handler) that
+	 * occur during an active session. The report is sent synchronously from the error handler on a
+	 * best-effort basis. Non-fatal Error logs are never reported automatically.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Error Reporting")
-	bool bEnableErrorLogging = false;
+	bool bEnableCrashReporting = false;
 
 private:
 	// Begin UDeveloperSettings interface

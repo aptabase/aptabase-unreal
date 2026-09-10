@@ -18,5 +18,5 @@ public:
 	 * Supply the original stack trace if available; an empty stack is omitted.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Analytics|Aptabase", meta = (AdvancedDisplay = "StackTrace,bFatal"))
-	static void TrackError(const FString& ErrorMessage, const FString& ErrorType = TEXT("Error"), const FString& StackTrace = TEXT(""), bool bFatal = false);
+	static void TrackError(const FString& ErrorMessage, const FString& ErrorType = FString(TEXT("Error")), const FString& StackTrace = FString(), bool bFatal = false);
 };

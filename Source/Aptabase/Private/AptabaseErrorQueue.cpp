@@ -16,7 +16,7 @@ void FAptabaseErrorQueue::EndSession()
 	bActive = false;
 }
 
-bool FAptabaseErrorQueue::Enqueue(const FString& ErrorType, const FString& Message, const FString& StackTrace, bool bFatal, bool bAutomatic)
+bool FAptabaseErrorQueue::Enqueue(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal)
 {
 	FScopeLock Lock(&Mutex);
 	if (!bActive || Outstanding >= MaxPendingReports || Seen.Num() >= MaxUniqueErrorsPerSession)
@@ -24,7 +24,7 @@ bool FAptabaseErrorQueue::Enqueue(const FString& ErrorType, const FString& Messa
 		return false;
 	}
 
-	FAptabaseErrorReport Report = FAptabaseErrorReport::Create(ErrorType, Message, StackTrace, bFatal, bAutomatic, Context);
+	FAptabaseErrorReport Report = FAptabaseErrorReport::Create(Message, ErrorType, StackTrace, bFatal, Context);
 	const uint64 Fingerprint = Report.GetFingerprint();
 	if (Seen.Contains(Fingerprint))
 	{

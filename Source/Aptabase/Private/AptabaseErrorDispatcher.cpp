@@ -26,15 +26,14 @@ void FAptabaseErrorDispatcher::EndSession()
 	Queue.EndSession();
 }
 
-void FAptabaseErrorDispatcher::TrackError(const FString& ErrorType, const FString& Message, const FString& StackTrace, bool bFatal, bool bAutomatic)
+void FAptabaseErrorDispatcher::TrackError(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal)
 {
-	if (!Queue.Enqueue(ErrorType, Message, StackTrace, bFatal, bAutomatic) || bFlushScheduled.exchange(true))
+	if (!Queue.Enqueue(Message, ErrorType, StackTrace, bFatal) || bFlushScheduled.exchange(true))
 	{
 		return;
 	}
 
-	// Coalesce worker-thread log bursts into one game-thread task. Never start HTTP
-	// inside a log callback, which could recursively generate more log messages.
+	// Coalesce bursts from any thread into one game-thread task; HTTP requests are only started there.
 	TWeakPtr<FAptabaseErrorDispatcher, ESPMode::ThreadSafe> WeakThis = AsShared();
 	AsyncTask(
 		ENamedThreads::GameThread,

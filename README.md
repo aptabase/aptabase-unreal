@@ -113,22 +113,26 @@ Manual reports have severity `error` and kind `handled`. With `bFatal = true`, t
 
 Use **Track Error** under **Analytics → Aptabase**. Set **Error Message** and **Error Type**; expand the advanced pins for **Stack Trace** and **Fatal**. The node uses Aptabase's own provider instance and also works when Aptabase is configured through the Multicast provider.
 
-### Automatic error logs
+### Automatic crash reporting
 
-Enable **Project Settings → Analytics → Aptabase → Enable Error Logging** before starting the session, or add this to `Config/DefaultAptabase.ini`:
+Enable **Project Settings → Analytics → Aptabase → Enable Crash Reporting** before starting the session, or add this to `Config/DefaultAptabase.ini`:
 
 ```ini
 [/Script/Aptabase.AptabaseSettings]
-bEnableErrorLogging=True
+bEnableCrashReporting=True
 ```
 
-This is off by default. While enabled, Unreal `Error` log messages are reported as `unhandled`/`error`, with the log category as the error type. `Fatal` messages reaching the log listener are classified as `crash`/`fatal`. Warnings, ordinary logs, and Aptabase/HTTP diagnostics are ignored. Automatic reports contain the log message; they do not synthesize a stack trace. Worker-thread logs are supported, and the listener is removed at session end, including Play-in-Editor sessions.
+This is off by default. While enabled, fatal errors that reach the engine's error handler during an active session are reported as `crash`/`fatal`: `check` and `verify` assertion failures, `UE_LOG` messages at `Fatal` verbosity, `LowLevelFatalError`, and unhandled native exceptions or signals on platforms where the engine routes them through its error handler. The report is built from the engine's error history: the heading becomes the error type (`AssertionFailed`, `FatalError`, `UnhandledException`), the description becomes the message and the engine's call stack is included.
 
-This listener does not intercept native crashes, assertions that bypass the log listener, or platform signals. Fatal delivery is best effort: the game thread and HTTP system must still run to send the report. Logging compiled out of a Shipping build cannot be captured. Unreal's own Crash Reporter remains available.
+Non-fatal `Error` log messages are never reported automatically. Use **Track Error** for errors your game detects itself.
+
+Delivery of crash reports is best effort. The process is terminating, so the report is sent synchronously from the error handler with a 3 second timeout while the engine's own crash handling continues afterwards. Nothing is sent when the HTTP thread is not running (for example with `-nohttpthread`), when the crash corrupts the process beyond what the engine's handler survives, or when the device is offline; crash reports are not persisted for a later launch. Unreal's own Crash Reporter remains available and is unaffected.
+
+Errors and crashes that happen before `StartSession()` or after `EndSession()` are not captured. Start the session as early as your game can, for example in your `GameInstance::Init`.
 
 ### Delivery
 
-- Reports are sent asynchronously, one per request. Capturing an error schedules an immediate send on the game thread; `FlushEvents()` and the normal send timer also flush errors.
+- Manual reports are sent asynchronously, one per request. Capturing an error schedules an immediate send on the game thread; `FlushEvents()` and the normal send timer also flush errors. Crash reports bypass the queue and are sent synchronously from the error handler.
 - Failed requests are retained for a later flush on connection errors or HTTP 408, 429, and 5xx. Other responses, including HTTP 403 (monthly quota exhausted), are not retried.
 - The queue holds up to 25 outstanding reports, including requests in progress. New reports are dropped when full. Each unique combination of kind, type, message, and stack is reported once per session, up to 100 unique reports.
 - Retries retain their original session and system context. Reports are stored in memory only and can be lost when the process exits. Ending a session initiates a final flush without waiting for delivery.

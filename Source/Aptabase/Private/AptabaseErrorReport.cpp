@@ -2,7 +2,7 @@
 
 #include <Dom/JsonObject.h>
 
-FAptabaseErrorReport FAptabaseErrorReport::Create(const FString& ErrorType, const FString& Message, const FString& StackTrace, bool bFatal, bool bAutomatic, const FAptabaseErrorContext& Context)
+FAptabaseErrorReport FAptabaseErrorReport::Create(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal, const FAptabaseErrorContext& Context)
 {
 	FAptabaseErrorReport Report;
 	const FString NormalizedType = ErrorType.TrimStartAndEnd();
@@ -11,7 +11,7 @@ FAptabaseErrorReport FAptabaseErrorReport::Create(const FString& ErrorType, cons
 	Report.StackTrace = StackTrace.Left(10000);
 	Report.Timestamp = FDateTime::UtcNow().ToIso8601();
 	Report.Severity = bFatal ? TEXT("fatal") : TEXT("error");
-	Report.Kind = bFatal ? TEXT("crash") : (bAutomatic ? TEXT("unhandled") : TEXT("handled"));
+	Report.Kind = bFatal ? TEXT("crash") : TEXT("handled");
 	Report.Context = Context;
 	Report.Context.SessionId = Context.SessionId.Left(100);
 	Report.Context.OsName = Context.OsName.Left(30);

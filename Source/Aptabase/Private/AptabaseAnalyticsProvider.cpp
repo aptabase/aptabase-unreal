@@ -12,9 +12,9 @@
 #include <Serialization/JsonSerializer.h>
 #include <TimerManager.h>
 
+#include "AptabaseCrashReporter.h"
 #include "AptabaseData.h"
 #include "AptabaseErrorDispatcher.h"
-#include "AptabaseErrorLog.h"
 #include "AptabaseLog.h"
 #include "AptabaseSettings.h"
 #include "ExtendedAnalyticsEventAttribute.h"
@@ -56,7 +56,7 @@ FAptabaseAnalyticsProvider::FAptabaseAnalyticsProvider() : ErrorDispatcher(MakeS
 
 FAptabaseAnalyticsProvider::~FAptabaseAnalyticsProvider()
 {
-	ErrorLog.Reset();
+	CrashReporter.Reset();
 	if (const UGameInstance* GameInstance = GetCurrentGameInstance())
 	{
 		GameInstance->GetTimerManager().ClearTimer(BatchEventTimerHandle);
@@ -68,9 +68,9 @@ FAptabaseAnalyticsProvider::~FAptabaseAnalyticsProvider()
 	}
 }
 
-void FAptabaseAnalyticsProvider::TrackError(const FString& ErrorType, const FString& Message, const FString& StackTrace, bool bFatal)
+void FAptabaseAnalyticsProvider::TrackError(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal)
 {
-	ErrorDispatcher->TrackError(ErrorType, Message, StackTrace, bFatal);
+	ErrorDispatcher->TrackError(Message, ErrorType, StackTrace, bFatal);
 }
 
 void FAptabaseAnalyticsProvider::RecordExtendedEvent(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes)
@@ -114,16 +114,16 @@ bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttrib
 	ErrorContext.ApiUrl.RemoveFromEnd(TEXT("/"));
 	ErrorContext.AppKey = Settings->AppKey;
 	ErrorDispatcher->StartSession(ErrorContext);
-	if (Settings->bEnableErrorLogging)
+	if (Settings->bEnableCrashReporting)
 	{
-		ErrorLog = MakeUnique<FAptabaseErrorLog>(ErrorDispatcher.ToSharedRef());
+		CrashReporter = MakeUnique<FAptabaseCrashReporter>(ErrorContext);
 	}
 	return true;
 }
 
 void FAptabaseAnalyticsProvider::EndSession()
 {
-	ErrorLog.Reset();
+	CrashReporter.Reset();
 	ErrorDispatcher->EndSession();
 	if (BatchEventTimerHandle.IsValid())
 	{
@@ -163,7 +163,7 @@ void FAptabaseAnalyticsProvider::FlushEvents()
 		TArray<FAptabaseEventPayload> CurrentBatch;
 		CurrentBatch.Append(EventsToProcess.Left(NumEventsPerRequest));
 
-		EventsToProcess.RightChopInline(FMath::Min(NumEventsPerRequest, EventsToProcess.Num()));
+		EventsToProcess.RightChopInline(NumEventsPerRequest);
 		SendEventsNow(CurrentBatch);
 	}
 

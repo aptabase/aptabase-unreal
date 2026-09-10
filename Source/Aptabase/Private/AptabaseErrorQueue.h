@@ -13,7 +13,7 @@ public:
 
 	void StartSession(const FAptabaseErrorContext& InContext);
 	void EndSession();
-	bool Enqueue(const FString& ErrorType, const FString& Message, const FString& StackTrace, bool bFatal, bool bAutomatic);
+	bool Enqueue(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal);
 	TArray<FAptabaseErrorReport> TakeBatch();
 	void Complete(const FAptabaseErrorReport& Report, bool bWasSuccessful, int32 ResponseCode);
 	static bool ShouldRetry(bool bWasSuccessful, int32 ResponseCode);
