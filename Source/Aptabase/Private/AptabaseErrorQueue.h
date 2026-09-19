@@ -14,6 +14,12 @@ public:
 	void StartSession(const FAptabaseErrorContext& InContext);
 	void EndSession();
 	bool Enqueue(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal);
+	/**
+	 * Queues a report captured earlier, such as a crash persisted by a previous run. The report keeps
+	 * its own session and capture-time context; only the host and key come from the current session.
+	 * Not deduplicated: reports from different sessions are distinct even when their text matches.
+	 */
+	bool EnqueueReport(FAptabaseErrorReport Report);
 	TArray<FAptabaseErrorReport> TakeBatch();
 	void Complete(const FAptabaseErrorReport& Report, bool bWasSuccessful, int32 ResponseCode);
 	static bool ShouldRetry(bool bWasSuccessful, int32 ResponseCode);

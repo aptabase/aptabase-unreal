@@ -21,6 +21,34 @@ FAptabaseErrorReport FAptabaseErrorReport::Create(const FString& Message, const 
 	return Report;
 }
 
+bool FAptabaseErrorReport::FromJsonObject(const FJsonObject& Json, FAptabaseErrorReport& OutReport)
+{
+	FAptabaseErrorReport Report;
+	if (!Json.TryGetStringField(TEXT("errorType"), Report.ErrorType) || !Json.TryGetStringField(TEXT("errorMessage"), Report.ErrorMessage) ||
+		!Json.TryGetStringField(TEXT("timestamp"), Report.Timestamp) || !Json.TryGetStringField(TEXT("severity"), Report.Severity) || !Json.TryGetStringField(TEXT("kind"), Report.Kind) ||
+		Report.ErrorType.IsEmpty() || Report.Timestamp.IsEmpty())
+	{
+		return false;
+	}
+	Json.TryGetStringField(TEXT("stackTrace"), Report.StackTrace);
+	Json.TryGetStringField(TEXT("sessionId"), Report.Context.SessionId);
+	Json.TryGetStringField(TEXT("osName"), Report.Context.OsName);
+	Json.TryGetStringField(TEXT("osVersion"), Report.Context.OsVersion);
+	Json.TryGetStringField(TEXT("appVersion"), Report.Context.AppVersion);
+	Json.TryGetStringField(TEXT("sdkVersion"), Report.Context.SdkVersion);
+	Json.TryGetBoolField(TEXT("isDebug"), Report.Context.bIsDebug);
+	Report.ErrorType = Report.ErrorType.Left(100);
+	Report.ErrorMessage = Report.ErrorMessage.Left(5000);
+	Report.StackTrace = Report.StackTrace.Left(10000);
+	Report.Context.SessionId = Report.Context.SessionId.Left(100);
+	Report.Context.OsName = Report.Context.OsName.Left(30);
+	Report.Context.OsVersion = Report.Context.OsVersion.Left(100);
+	Report.Context.AppVersion = Report.Context.AppVersion.Left(50);
+	Report.Context.SdkVersion = Report.Context.SdkVersion.Left(40);
+	OutReport = MoveTemp(Report);
+	return true;
+}
+
 TSharedRef<FJsonObject> FAptabaseErrorReport::ToJsonObject() const
 {
 	TSharedRef<FJsonObject> Json = MakeShared<FJsonObject>();

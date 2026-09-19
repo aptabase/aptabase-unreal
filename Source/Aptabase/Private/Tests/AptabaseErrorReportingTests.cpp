@@ -2,7 +2,11 @@
 
 #include <Async/Async.h>
 #include <Dom/JsonObject.h>
+#include <HAL/FileManager.h>
 #include <Misc/AutomationTest.h>
+#include <Misc/FileHelper.h>
+#include <Misc/Paths.h>
+#include <Serialization/JsonSerializer.h>
 
 #include "AptabaseCrashReporter.h"
 #include "AptabaseErrorQueue.h"
@@ -233,7 +237,11 @@ bool FAptabaseCrashReportTest::RunTest(const FString& Parameters)
 {
 	// Fatal log / assert as written to GErrorHist: heading, location, message, blank line, call stack.
 	const auto Assert = FAptabaseCrashReporter::CreateReport(
-		TEXT("Assertion failed: Ptr != nullptr [File:D:/Game/Source/Player.cpp] [Line: 42] \r\nPlayer has no pawn\r\n\r\n0x00007ff6 Game.exe!APlayer::Tick()\r\n0x00007ff7 Game.exe!AActor::TickActor()"),
+		TEXT(
+			"Assertion failed: Ptr != nullptr [File:D:/Game/Source/Player.cpp] [Line: 42] \r\nPlayer has no pawn\r\n\r\n0x00007ff6 Game.exe!APlayer::Tick()\r\n0x00007ff7 Game.exe!AActor::TickActor()"
+		),
+		TEXT(""),
+		TEXT(""),
 		TestContext()
 	);
 	TestEqual(TEXT("Assert type"), Assert.ErrorType, FString(TEXT("AssertionFailed")));
@@ -243,27 +251,141 @@ bool FAptabaseCrashReportTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Crash kind"), Assert.Kind, FString(TEXT("crash")));
 	TestEqual(TEXT("Session context"), Assert.Context.SessionId, TestContext().SessionId);
 
-	const auto Fatal = FAptabaseCrashReporter::CreateReport(TEXT("Fatal error: [File:Main.cpp] [Line: 7] \nOut of memory\n\n[Callstack] 0x1 Game!Main()"), TestContext());
+	const auto Fatal = FAptabaseCrashReporter::CreateReport(TEXT("Fatal error: [File:Main.cpp] [Line: 7] \nOut of memory\n\n[Callstack] 0x1 Game!Main()"), TEXT(""), TEXT(""), TestContext());
 	TestEqual(TEXT("Fatal type"), Fatal.ErrorType, FString(TEXT("FatalError")));
 	TestEqual(TEXT("Fatal message"), Fatal.ErrorMessage, FString(TEXT("Fatal FatalError: [File:Main.cpp] [Line: 7] \nOut of memory")));
 	TestEqual(TEXT("Fatal stack"), Fatal.StackTrace, FString(TEXT("[Callstack] 0x1 Game!Main()")));
 
 	// Crash description without the blank line still splits at the first frame.
-	const auto Crash = FAptabaseCrashReporter::CreateReport(TEXT("Unhandled Exception: EXCEPTION_ACCESS_VIOLATION reading address 0x0\n0x00007ff6 Game.exe!Foo()"), TestContext());
+	const auto Crash = FAptabaseCrashReporter::CreateReport(TEXT("Unhandled Exception: EXCEPTION_ACCESS_VIOLATION reading address 0x0\n0x00007ff6 Game.exe!Foo()"), TEXT(""), TEXT(""), TestContext());
 	TestEqual(TEXT("Exception type"), Crash.ErrorType, FString(TEXT("UnhandledException")));
 	TestEqual(TEXT("Exception message"), Crash.ErrorMessage, FString(TEXT("Fatal UnhandledException: EXCEPTION_ACCESS_VIOLATION reading address 0x0")));
 	TestEqual(TEXT("Exception stack"), Crash.StackTrace, FString(TEXT("0x00007ff6 Game.exe!Foo()")));
 
 	// Unknown formats are reported verbatim under a generic type; a location-only heading is not a type.
-	const auto Plain = FAptabaseCrashReporter::CreateReport(TEXT("[File:X.cpp] [Line: 1] something broke"), TestContext());
+	const auto Plain = FAptabaseCrashReporter::CreateReport(TEXT("[File:X.cpp] [Line: 1] something broke"), TEXT(""), TEXT(""), TestContext());
 	TestEqual(TEXT("Generic type"), Plain.ErrorType, FString(TEXT("FatalError")));
 	TestEqual(TEXT("Verbatim message"), Plain.ErrorMessage, FString(TEXT("Fatal FatalError: [File:X.cpp] [Line: 1] something broke")));
 	TestTrue(TEXT("No stack"), Plain.StackTrace.IsEmpty());
 
-	const auto Empty = FAptabaseCrashReporter::CreateReport(TEXT(""), TestContext());
+	const auto Empty = FAptabaseCrashReporter::CreateReport(TEXT(""), TEXT(""), TEXT(""), TestContext());
 	TestEqual(TEXT("Empty history still yields a valid report"), Empty.ErrorMessage, FString(TEXT("Fatal FatalError: Fatal error without details")));
 	TestEqual(TEXT("Empty history keeps the generic type"), Empty.ErrorType, FString(TEXT("FatalError")));
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAptabaseCrashReportApplePlatformTest, "Aptabase.Errors.CrashReportApplePlatform", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FAptabaseCrashReportApplePlatformTest::RunTest(const FString& Parameters)
+{
+	// On Apple platforms the crash context overwrites GErrorHist with the call stack before the error
+	// handler runs; the description survives only as the message the error device logged.
+	const TCHAR* Stack =
+		TEXT("0x15c18e30 libUnrealEditor-Engine.dylib!FTimerUnifiedDelegate::Execute() const   [UnknownFile]) \n0x15c1c514 libUnrealEditor-Engine.dylib!FTimerManager::Tick(float)   [UnknownFile]) ");
+	const auto Fatal = FAptabaseCrashReporter::CreateReport(
+		Stack, TEXT("Fatal error: [File:Game.cpp] [Line: 77] \r\nIntentional test crash\r\n"), TEXT("SIGSEGV: invalid attempt to access memory at address 0x3"), TestContext()
+	);
+	TestEqual(TEXT("Type from logged message"), Fatal.ErrorType, FString(TEXT("FatalError")));
+	TestEqual(TEXT("Message from logged message"), Fatal.ErrorMessage, FString(TEXT("Fatal FatalError: [File:Game.cpp] [Line: 77] \nIntentional test crash")));
+	TestEqual(TEXT("Whole history is the stack"), Fatal.StackTrace, FString(Stack).TrimStartAndEnd());
+
+	const auto Assert = FAptabaseCrashReporter::CreateReport(
+		Stack, TEXT("Assertion failed: false [File:Game.cpp] [Line: 3] \nMust not happen"), TEXT("SIGSEGV: invalid attempt to access memory at address 0x3"), TestContext()
+	);
+	TestEqual(TEXT("Assert type from logged message"), Assert.ErrorType, FString(TEXT("AssertionFailed")));
+	TestEqual(TEXT("Assert message from logged message"), Assert.ErrorMessage, FString(TEXT("Fatal AssertionFailed: false [File:Game.cpp] [Line: 3] \nMust not happen")));
+
+	// A real crash logs nothing before the handler: the signal description is all that is known.
+	const auto Signal = FAptabaseCrashReporter::CreateReport(Stack, TEXT(""), TEXT("SIGSEGV: invalid attempt to access memory at address 0x0"), TestContext());
+	TestEqual(TEXT("Signal type"), Signal.ErrorType, FString(TEXT("SIGSEGV")));
+	TestEqual(TEXT("Signal message"), Signal.ErrorMessage, FString(TEXT("Fatal SIGSEGV: invalid attempt to access memory at address 0x0")));
+	TestEqual(TEXT("Signal stack"), Signal.StackTrace, FString(Stack).TrimStartAndEnd());
+
+	// A history with its own description takes precedence over the logged message.
+	const auto Windows = FAptabaseCrashReporter::CreateReport(
+		TEXT("Fatal error: [File:Main.cpp] [Line: 7] \nOut of memory\n\n0x1 Game!Main()"), TEXT("Fatal error: something else"), TEXT("EXCEPTION_ACCESS_VIOLATION"), TestContext()
+	);
+	TestEqual(TEXT("History description wins"), Windows.ErrorMessage, FString(TEXT("Fatal FatalError: [File:Main.cpp] [Line: 7] \nOut of memory")));
+
+	const auto Nothing = FAptabaseCrashReporter::CreateReport(Stack, TEXT(""), TEXT(""), TestContext());
+	TestEqual(TEXT("Stack without any description"), Nothing.ErrorMessage, FString(TEXT("Fatal FatalError: Fatal error without details")));
+	TestEqual(TEXT("Stack without any description keeps the stack"), Nothing.StackTrace, FString(Stack).TrimStartAndEnd());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAptabaseCrashReportPersistenceTest, "Aptabase.Errors.CrashReportPersistence", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FAptabaseCrashReportPersistenceTest::RunTest(const FString& Parameters)
+{
+	const FAptabaseErrorReport Original = FAptabaseCrashReporter::CreateReport(TEXT("Fatal error: [File:Main.cpp] [Line: 7] \nOut of memory\n\n0x1 Game!Main()"), TEXT(""), TEXT(""), TestContext());
+	FAptabaseErrorReport Restored;
+	TestTrue(TEXT("Round trip parses"), FAptabaseErrorReport::FromJsonObject(*Original.ToJsonObject(), Restored));
+	TestEqual(TEXT("Round trip type"), Restored.ErrorType, Original.ErrorType);
+	TestEqual(TEXT("Round trip message"), Restored.ErrorMessage, Original.ErrorMessage);
+	TestEqual(TEXT("Round trip stack"), Restored.StackTrace, Original.StackTrace);
+	TestEqual(TEXT("Round trip timestamp"), Restored.Timestamp, Original.Timestamp);
+	TestEqual(TEXT("Round trip severity"), Restored.Severity, Original.Severity);
+	TestEqual(TEXT("Round trip kind"), Restored.Kind, Original.Kind);
+	TestEqual(TEXT("Round trip session"), Restored.Context.SessionId, Original.Context.SessionId);
+	TestEqual(TEXT("Round trip OS"), Restored.Context.OsName, Original.Context.OsName);
+	TestEqual(TEXT("Round trip app version"), Restored.Context.AppVersion, Original.Context.AppVersion);
+	TestEqual(TEXT("Round trip SDK version"), Restored.Context.SdkVersion, Original.Context.SdkVersion);
+	TestTrue(TEXT("Round trip debug flag"), Restored.Context.bIsDebug);
+	TestTrue(TEXT("Credentials are not restored from the body"), Restored.Context.AppKey.IsEmpty() && Restored.Context.ApiUrl.IsEmpty());
+	FJsonObject Incomplete;
+	Incomplete.SetStringField(TEXT("errorType"), TEXT("X"));
+	TestFalse(TEXT("Incomplete body rejected"), FAptabaseErrorReport::FromJsonObject(Incomplete, Restored));
+
+	const FString Directory = FPaths::Combine(FPaths::ProjectIntermediateDir(), TEXT("AptabaseTests"), FGuid::NewGuid().ToString());
+	IFileManager& FileManager = IFileManager::Get();
+	FileManager.MakeDirectory(*Directory, true);
+	FString Body;
+	FJsonSerializer::Serialize(Original.ToJsonObject(), TJsonWriterFactory<>::Create(&Body));
+	for (int32 Index = 0; Index < FAptabaseCrashReporter::MaxPersistedReports + 2; ++Index)
+	{
+		FFileHelper::SaveStringToFile(Body, *FPaths::Combine(Directory, FString::Printf(TEXT("%d-session.json"), 1000 + Index)));
+	}
+	const FString Corrupt = FPaths::Combine(Directory, TEXT("2000-session.json"));
+	FFileHelper::SaveStringToFile(TEXT("{not json"), *Corrupt);
+	const FString Unrelated = FPaths::Combine(Directory, TEXT("notes.txt"));
+	FFileHelper::SaveStringToFile(TEXT("keep"), *Unrelated);
+
+	TArray<FAptabaseErrorReport> Loaded = FAptabaseCrashReporter::LoadPendingReports(Directory);
+	TestEqual(TEXT("Newest reports loaded up to the cap"), Loaded.Num(), FAptabaseCrashReporter::MaxPersistedReports);
+	TestFalse(TEXT("Corrupt file deleted"), FileManager.FileExists(*Corrupt));
+	TestFalse(TEXT("Oldest file beyond the cap deleted"), FileManager.FileExists(*FPaths::Combine(Directory, TEXT("1000-session.json"))));
+	TestTrue(TEXT("Unrelated files untouched"), FileManager.FileExists(*Unrelated));
+	TestEqual(TEXT("Nothing loaded from an empty path"), FAptabaseCrashReporter::LoadPendingReports(FString()).Num(), 0);
+	if (Loaded.Num() > 1)
+	{
+		TestTrue(TEXT("Loaded file recorded"), FileManager.FileExists(*Loaded[0].PersistedPath));
+		TestEqual(TEXT("Loaded report keeps its session"), Loaded[0].Context.SessionId, TestContext().SessionId);
+
+		auto NewContext = TestContext();
+		NewContext.SessionId = TEXT("new session");
+		NewContext.AppKey = TEXT("A-DEV-9999999999");
+		NewContext.ApiUrl = TEXT("https://another-host.example");
+		FAptabaseErrorQueue Queue;
+		TestFalse(TEXT("No pending reports before session"), Queue.EnqueueReport(Loaded[0]));
+		Queue.StartSession(NewContext);
+		TestTrue(TEXT("Pending report accepted"), Queue.EnqueueReport(Loaded[0]));
+		TestTrue(TEXT("Identical pending report from another file is not deduplicated"), Queue.EnqueueReport(Loaded[1]));
+		const auto Batch = Queue.TakeBatch();
+		if (!TestEqual(TEXT("Both pending reports queued"), Batch.Num(), 2))
+		{
+			return false;
+		}
+		TestEqual(TEXT("Crashed session retained"), Batch[0].Context.SessionId, TestContext().SessionId);
+		TestEqual(TEXT("Current key used"), Batch[0].Context.AppKey, NewContext.AppKey);
+		TestEqual(TEXT("Current host used"), Batch[0].Context.ApiUrl, NewContext.ApiUrl);
+		Queue.Complete(Batch[0], false, 503);
+		TestTrue(TEXT("File kept while retrying"), FileManager.FileExists(*Batch[0].PersistedPath));
+		Queue.Complete(Batch[0], true, 202);
+		TestFalse(TEXT("File deleted after delivery"), FileManager.FileExists(*Batch[0].PersistedPath));
+		Queue.Complete(Batch[1], true, 400);
+		TestFalse(TEXT("File deleted after permanent rejection"), FileManager.FileExists(*Batch[1].PersistedPath));
+	}
+	FileManager.DeleteDirectory(*Directory, false, true);
+	return true;
+}
 #endif

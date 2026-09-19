@@ -1,5 +1,6 @@
 #include "AptabaseErrorQueue.h"
 
+#include <HAL/FileManager.h>
 #include <Misc/ScopeLock.h>
 
 void FAptabaseErrorQueue::StartSession(const FAptabaseErrorContext& InContext)
@@ -36,6 +37,20 @@ bool FAptabaseErrorQueue::Enqueue(const FString& Message, const FString& ErrorTy
 	return true;
 }
 
+bool FAptabaseErrorQueue::EnqueueReport(FAptabaseErrorReport Report)
+{
+	FScopeLock Lock(&Mutex);
+	if (!bActive || Outstanding >= MaxPendingReports)
+	{
+		return false;
+	}
+	Report.Context.ApiUrl = Context.ApiUrl;
+	Report.Context.AppKey = Context.AppKey;
+	Pending.Add(MoveTemp(Report));
+	++Outstanding;
+	return true;
+}
+
 TArray<FAptabaseErrorReport> FAptabaseErrorQueue::TakeBatch()
 {
 	FScopeLock Lock(&Mutex);
@@ -50,10 +65,13 @@ void FAptabaseErrorQueue::Complete(const FAptabaseErrorReport& Report, bool bWas
 	if (ShouldRetry(bWasSuccessful, ResponseCode))
 	{
 		Pending.Add(Report);
+		return;
 	}
-	else
+	--Outstanding;
+	if (!Report.PersistedPath.IsEmpty())
 	{
-		--Outstanding;
+		// Delivered or permanently rejected: either way the file must not be sent again.
+		IFileManager::Get().Delete(*Report.PersistedPath, false, false, true);
 	}
 }
 

@@ -13,6 +13,10 @@ public:
 	void StartSession(const FAptabaseErrorContext& Context);
 	void EndSession();
 	void TrackError(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal);
+	/** Queues a previously captured report (see FAptabaseErrorQueue::EnqueueReport); call Flush to send it. */
+	bool EnqueueReport(FAptabaseErrorReport Report);
+	/** Queues a previously captured report (see FAptabaseErrorQueue::EnqueueReport); call Flush to send it. */
+	bool EnqueueReport(FAptabaseErrorReport Report);
 	void Flush();
 
 private:

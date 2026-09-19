@@ -58,8 +58,9 @@ public:
 	float DebugSendInterval = 2.0f;
 	/**
 	 * Report fatal errors (asserts, Fatal logs and crashes handled by the engine's error handler) that
-	 * occur during an active session. The report is sent synchronously from the error handler on a
-	 * best-effort basis. Non-fatal Error logs are never reported automatically.
+	 * occur during an active session. The report is written to Saved/Aptabase/Crashes from the error handler
+	 * and sent at the next session start (Windows also attempts an immediate send). Non-fatal Error logs
+	 * are never reported automatically.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Aptabase Error Reporting")
 	bool bEnableCrashReporting = false;

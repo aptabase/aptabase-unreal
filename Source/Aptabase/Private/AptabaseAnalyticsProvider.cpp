@@ -9,6 +9,7 @@
 #include <Interfaces/IPluginManager.h>
 #include <Kismet/GameplayStatics.h>
 #include <Kismet/KismetInternationalizationLibrary.h>
+#include <Misc/Paths.h>
 #include <Serialization/JsonSerializer.h>
 #include <TimerManager.h>
 
@@ -116,7 +117,14 @@ bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttrib
 	ErrorDispatcher->StartSession(ErrorContext);
 	if (Settings->bEnableCrashReporting)
 	{
-		CrashReporter = MakeUnique<FAptabaseCrashReporter>(ErrorContext);
+		// Crashes persisted by earlier runs are sent with the new session, under their own session IDs.
+		const FString PendingCrashDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Aptabase"), TEXT("Crashes"));
+		for (FAptabaseErrorReport& PendingReport : FAptabaseCrashReporter::LoadPendingReports(PendingCrashDirectory))
+		{
+			ErrorDispatcher->EnqueueReport(MoveTemp(PendingReport));
+		}
+		ErrorDispatcher->Flush();
+		CrashReporter = MakeUnique<FAptabaseCrashReporter>(ErrorContext, PendingCrashDirectory);
 	}
 	return true;
 }
@@ -310,7 +318,7 @@ FAnalyticsEventAttribute FAptabaseAnalyticsProvider::GetDefaultEventAttribute(in
 	{
 		return DefaultEventAttributes[AttributeIndex];
 	}
-	
+
 	UE_LOG(LogAptabase, Warning, TEXT("Requested default event attribute index %d is out of bounds (count: %d)"), AttributeIndex, DefaultEventAttributes.Num());
 	return FAnalyticsEventAttribute();
 }
