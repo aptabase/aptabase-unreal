@@ -53,11 +53,6 @@ bool FAptabaseErrorDispatcher::EnqueueReport(FAptabaseErrorReport Report)
 	return Queue.EnqueueReport(MoveTemp(Report));
 }
 
-bool FAptabaseErrorDispatcher::EnqueueReport(FAptabaseErrorReport Report)
-{
-	return Queue.EnqueueReport(MoveTemp(Report));
-}
-
 void FAptabaseErrorDispatcher::Flush()
 {
 	check(IsInGameThread());

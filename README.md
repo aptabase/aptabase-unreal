@@ -132,10 +132,10 @@ Errors and crashes that happen before `StartSession()` or after `EndSession()` a
 
 ### Delivery
 
-- Manual reports are sent asynchronously, one per request. Capturing an error schedules an immediate send on the game thread; `FlushEvents()` and the normal send timer also flush errors. Crash reports bypass the queue and are sent synchronously from the error handler.
+- Manual reports are sent asynchronously, one per request. Capturing an error schedules an immediate send on the game thread; `FlushEvents()` and the normal send timer also flush errors. Crash reports are written to disk from the error handler and queued for sending at the next session start, as described above.
 - Failed requests are retained for a later flush on connection errors or HTTP 408, 429, and 5xx. Other responses, including HTTP 403 (monthly quota exhausted), are not retried.
 - The queue holds up to 25 outstanding reports, including requests in progress. New reports are dropped when full. Each unique combination of kind, type, message, and stack is reported once per session, up to 100 unique reports.
-- Retries retain their original session and system context. Reports are stored in memory only and can be lost when the process exits. Ending a session initiates a final flush without waiting for delivery.
+- Retries retain their original session and system context. Manual reports are stored in memory only and can be lost when the process exits; crash reports are persisted until delivered or permanently rejected. Ending a session initiates a final flush without waiting for delivery.
 - Error text can contain application data. Only include information you intend to send to Aptabase.
 
 See [testing instructions](Docs/testing.md) for the Unreal automation suite.
