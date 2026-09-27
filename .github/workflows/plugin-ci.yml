@@ -88,10 +88,11 @@ jobs:
           ue4 setroot /home/ue4/UnrealEngine '
 
       # UBA's file system hooks segfault clang++ (in opendir) inside this container,
-      # leaving the build hung. Fall back to the plain local executor.
+      # leaving the build hung. Fall back to the plain local executor. UBT reads its config
+      # from XDG_CONFIG_HOME, which the image points at /home/ue4/.config rather than $HOME.
       - name: Disable Unreal Build Accelerator
         run: |
-          docker exec -i unreal bash -c 'mkdir -p "$HOME/.config/Unreal Engine/UnrealBuildTool" && cat > "$HOME/.config/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml"' <<'EOF'
+          docker exec -i unreal bash -c 'mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/Unreal Engine/UnrealBuildTool" && cat > "${XDG_CONFIG_HOME:-$HOME/.config}/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml"' <<'EOF'
           <?xml version="1.0" encoding="utf-8" ?>
           <Configuration xmlns="https://www.unrealengine.com/BuildConfiguration">
             <BuildConfiguration>
