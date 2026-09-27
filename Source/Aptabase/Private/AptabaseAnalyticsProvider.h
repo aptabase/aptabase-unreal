@@ -7,6 +7,8 @@
 #include "AptabaseData.h"
 
 struct FExtendedAnalyticsEventAttribute;
+class FAptabaseErrorDispatcher;
+class FAptabaseCrashReporter;
 
 /**
  *  Implementation of Aptabase Analytics provider
@@ -14,6 +16,10 @@ struct FExtendedAnalyticsEventAttribute;
 class FAptabaseAnalyticsProvider final : public IAnalyticsProvider
 {
 public:
+	FAptabaseAnalyticsProvider();
+	virtual ~FAptabaseAnalyticsProvider() override;
+	void TrackError(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal);
+
 	/**
 	 * Overload for RecordEvent that takes an array of ExtendedAttributes
 	 */
@@ -71,4 +77,7 @@ private:
 	 * @brief Default event attributes that will be added to all events
 	 */
 	TArray<FAnalyticsEventAttribute> DefaultEventAttributes;
+	TSharedPtr<FAptabaseErrorDispatcher, ESPMode::ThreadSafe> ErrorDispatcher;
+	TUniquePtr<FAptabaseCrashReporter> CrashReporter;
+	TArray<FHttpRequestPtr> EventRequests;
 };

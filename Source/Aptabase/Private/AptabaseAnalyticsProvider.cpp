@@ -9,10 +9,13 @@
 #include <Interfaces/IPluginManager.h>
 #include <Kismet/GameplayStatics.h>
 #include <Kismet/KismetInternationalizationLibrary.h>
+#include <Misc/Paths.h>
 #include <Serialization/JsonSerializer.h>
 #include <TimerManager.h>
 
+#include "AptabaseCrashReporter.h"
 #include "AptabaseData.h"
+#include "AptabaseErrorDispatcher.h"
 #include "AptabaseLog.h"
 #include "AptabaseSettings.h"
 #include "ExtendedAnalyticsEventAttribute.h"
@@ -21,6 +24,10 @@ namespace
 {
 	UGameInstance* GetCurrentGameInstance()
 	{
+		if (!GEngine)
+		{
+			return nullptr;
+		}
 		for (const FWorldContext& Context : GEngine->GetWorldContexts())
 		{
 			if (Context.WorldType == EWorldType::PIE || Context.WorldType == EWorldType::Game)
@@ -44,6 +51,29 @@ namespace
 	}
 } // namespace
 
+FAptabaseAnalyticsProvider::FAptabaseAnalyticsProvider() : ErrorDispatcher(MakeShared<FAptabaseErrorDispatcher, ESPMode::ThreadSafe>())
+{
+}
+
+FAptabaseAnalyticsProvider::~FAptabaseAnalyticsProvider()
+{
+	CrashReporter.Reset();
+	if (const UGameInstance* GameInstance = GetCurrentGameInstance())
+	{
+		GameInstance->GetTimerManager().ClearTimer(BatchEventTimerHandle);
+	}
+	for (const FHttpRequestPtr& Request : EventRequests)
+	{
+		Request->OnProcessRequestComplete().Unbind();
+		Request->CancelRequest();
+	}
+}
+
+void FAptabaseAnalyticsProvider::TrackError(const FString& Message, const FString& ErrorType, const FString& StackTrace, bool bFatal)
+{
+	ErrorDispatcher->TrackError(Message, ErrorType, StackTrace, bFatal);
+}
+
 void FAptabaseAnalyticsProvider::RecordExtendedEvent(const FString& EventName, const TArray<FExtendedAnalyticsEventAttribute>& Attributes)
 {
 	RecordEventInternal(EventName, Attributes);
@@ -51,6 +81,10 @@ void FAptabaseAnalyticsProvider::RecordExtendedEvent(const FString& EventName, c
 
 bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttribute>& Attributes)
 {
+	if (bHasActiveSession)
+	{
+		return true;
+	}
 	const UGameInstance* GameInstance = GetCurrentGameInstance();
 	if (!ensure(GameInstance))
 	{
@@ -68,11 +102,37 @@ bool FAptabaseAnalyticsProvider::StartSession(const TArray<FAnalyticsEventAttrib
 	SessionId = FString::Printf(TEXT("%lld%s"), EpochInSeconds, *RandomString);
 
 	bHasActiveSession = true;
+
+	FAptabaseErrorContext ErrorContext;
+	ErrorContext.SessionId = SessionId;
+	ErrorContext.OsName = UGameplayStatics::GetPlatformName();
+	ErrorContext.OsVersion = FPlatformMisc::GetOSVersion();
+	ErrorContext.AppVersion = GetDefault<UGeneralProjectSettings>()->ProjectVersion;
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Aptabase"));
+	ErrorContext.SdkVersion = FString::Printf(TEXT("aptabase-unreal@%s"), Plugin.IsValid() ? *Plugin->GetDescriptor().VersionName : TEXT("unknown"));
+	ErrorContext.bIsDebug = !IsInReleaseMode();
+	ErrorContext.ApiUrl = Settings->GetApiUrl();
+	ErrorContext.ApiUrl.RemoveFromEnd(TEXT("/"));
+	ErrorContext.AppKey = Settings->AppKey;
+	ErrorDispatcher->StartSession(ErrorContext);
+	if (Settings->bEnableCrashReporting)
+	{
+		// Crashes persisted by earlier runs are sent with the new session, under their own session IDs.
+		const FString PendingCrashDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Aptabase"), TEXT("Crashes"));
+		for (FAptabaseErrorReport& PendingReport : FAptabaseCrashReporter::LoadPendingReports(PendingCrashDirectory))
+		{
+			ErrorDispatcher->EnqueueReport(MoveTemp(PendingReport));
+		}
+		ErrorDispatcher->Flush();
+		CrashReporter = MakeUnique<FAptabaseCrashReporter>(ErrorContext, PendingCrashDirectory);
+	}
 	return true;
 }
 
 void FAptabaseAnalyticsProvider::EndSession()
 {
+	CrashReporter.Reset();
+	ErrorDispatcher->EndSession();
 	if (BatchEventTimerHandle.IsValid())
 	{
 		if (const UGameInstance* GameInstance = GetCurrentGameInstance())
@@ -116,6 +176,7 @@ void FAptabaseAnalyticsProvider::FlushEvents()
 	}
 
 	BatchedEvents.Empty();
+	ErrorDispatcher->Flush();
 }
 
 void FAptabaseAnalyticsProvider::SetUserID(const FString& InUserID)
@@ -198,12 +259,18 @@ void FAptabaseAnalyticsProvider::SendEventsNow(const TArray<FAptabaseEventPayloa
 	HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	HttpRequest->SetURL(RequestUrl);
 	HttpRequest->OnProcessRequestComplete().BindRaw(this, &FAptabaseAnalyticsProvider::OnEventsRecoded, EventPayloads);
-	HttpRequest->ProcessRequest();
+	EventRequests.Add(HttpRequest);
+	if (!HttpRequest->ProcessRequest())
+	{
+		HttpRequest->OnProcessRequestComplete().Unbind();
+		EventRequests.Remove(HttpRequest);
+	}
 }
 
 void FAptabaseAnalyticsProvider::OnEventsRecoded(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful, TArray<FAptabaseEventPayload> OriginalEvents)
 {
-	if (!bWasSuccessful)
+	EventRequests.Remove(Request);
+	if (!bWasSuccessful || !Response.IsValid())
 	{
 		UE_LOG(LogAptabase, Error, TEXT("Request to record the event was unsuccessful."));
 		return;
@@ -251,7 +318,7 @@ FAnalyticsEventAttribute FAptabaseAnalyticsProvider::GetDefaultEventAttribute(in
 	{
 		return DefaultEventAttributes[AttributeIndex];
 	}
-	
+
 	UE_LOG(LogAptabase, Warning, TEXT("Requested default event attribute index %d is out of bounds (count: %d)"), AttributeIndex, DefaultEventAttributes.Num());
 	return FAnalyticsEventAttribute();
 }
