@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - ci/inline-compile-workflow # TEMPORARY: push-event dry run, remove before merge
   pull_request:
     branches:
       - main
