@@ -87,18 +87,22 @@ jobs:
           pip3 install -Iv ue4cli==0.0.54 ;
           ue4 setroot /home/ue4/UnrealEngine '
 
-      # UBA's file system hooks segfault clang++ (in opendir) inside this container,
-      # leaving the build hung. Fall back to the plain local executor. UBT reads its config
-      # from XDG_CONFIG_HOME, which the image points at /home/ue4/.config rather than $HOME.
-      - name: Disable Unreal Build Accelerator
+      # UBA's file system detours intermittently segfault clang++ (in opendir) inside this
+      # container, leaving the build hung. Disable remote UBA and detouring so compiles run as
+      # plain processes, and retry any UBA failure without UBA. UBT reads its config from
+      # XDG_CONFIG_HOME, which the image points at /home/ue4/.config rather than $HOME.
+      - name: Disable Unreal Build Accelerator detours
         run: |
           docker exec -i unreal bash -c 'mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/Unreal Engine/UnrealBuildTool" && cat > "${XDG_CONFIG_HOME:-$HOME/.config}/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml"' <<'EOF'
           <?xml version="1.0" encoding="utf-8" ?>
           <Configuration xmlns="https://www.unrealengine.com/BuildConfiguration">
             <BuildConfiguration>
               <bAllowUBAExecutor>false</bAllowUBAExecutor>
-              <bAllowUBALocalExecutor>false</bAllowUBALocalExecutor>
             </BuildConfiguration>
+            <UnrealBuildAccelerator>
+              <AllowDetour>false</AllowDetour>
+              <bForcedRetry>true</bForcedRetry>
+            </UnrealBuildAccelerator>
           </Configuration>
           EOF
 
