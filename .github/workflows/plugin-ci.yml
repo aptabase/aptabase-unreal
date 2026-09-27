@@ -5,12 +5,110 @@ on:
     branches:
       - main
   pull_request:
-    branches: 
+    branches:
       - main
 
+# Adapted from outoftheboxplugins/BuildMachines compile-plugin.yml (96845d2),
+# inlined so engine version and build settings are pinned in this repo.
 jobs:
-  plugin-ci:
-    uses:  outoftheboxplugins/BuildMachines/.github/workflows/compile-plugin.yml@master
-    secrets:
-      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  compile:
+    name: Compile UE ${{ matrix.ue_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ue_version: ["5.8"]
+
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 2048
+          swap-size-mb: 1024
+          build-mount-path: /var/lib/docker
+          overprovision-lvm: 'true'
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Restart Docker
+        run: sudo systemctl restart docker
+
+      - name: Start Docker container
+        env:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        run: |
+          echo "$DOCKER_TOKEN" | docker login ghcr.io -u "$DOCKER_USERNAME" --password-stdin
+          # Start the container with the UID of the GH action user to avoid permission issues on the volume.
+          # IPv6 network works around container startup issues, see https://github.com/adamrehn/ue4-docker/issues/357
+          uid=$(id -u) # the GH action user ID
+          gid=1000     # the ue4 group in the docker container
+          user='gh'
+          set -x
+          docker network create --ipv6 --subnet 2001:0DB8::/112 ip6net
+          docker run -td \
+            --name unreal \
+            --volume ${{ github.workspace }}:/workspace \
+            --workdir /workspace \
+            --user $uid:$gid \
+            --env HOME="/home/$user" \
+            --env PATH="/home/$user/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            --network ip6net -p 80:80 \
+            ghcr.io/epicgames/unreal-engine:dev-slim-${{ matrix.ue_version }}
+          docker logout ghcr.io
+
+          # Chown the paths UE needs to write to. Chowning the whole engine would make docker copy it
+          # into the container layer and run the runner out of disk space.
+          docker exec --user root unreal bash -c "
+            chown -R $uid /tmp/uba_shm_locks ;
+            chown -R $uid /home/ue4/UnrealEngine/Engine/Binaries/ThirdParty/Mono/Linux ;
+            chown -R $uid /home/ue4/UnrealEngine/Engine/Plugins/VirtualProduction/CaptureData ;
+            chown -R $uid /home/ue4/UnrealEngine/Engine/Plugins/VirtualProduction/CaptureManager ;
+            chown -R $uid /home/ue4/UnrealEngine/Engine/Plugins/MetaHuman ;
+            chown -R $uid /home/ue4/UnrealEngine/Engine/Binaries/ThirdParty/DotNet ;
+            chown -R $uid /home/ue4/.config "
+
+          # Add the user so it has a home directory (needed for the pip cache later on)
+          docker exec --user root unreal useradd -u $uid -g $gid --create-home $user
+
+      - name: Setup C++ runtime
+        run: docker exec --user root unreal bash -c '
+          apt-get update ;
+          apt-get install -y libstdc++6 build-essential libc++-dev libc++abi-dev'
+
+      - name: Setup UE CLI
+        run: docker exec unreal bash -c '
+          pip3 install --upgrade pip ;
+          pip3 install -Iv ue4cli==0.0.54 ;
+          ue4 setroot /home/ue4/UnrealEngine '
+
+      # UBA's file system detours intermittently segfault clang++ (in opendir) inside this
+      # container, leaving the build hung. Disable remote UBA and detouring so compiles run as
+      # plain processes, and retry any UBA failure without UBA. UBT reads its config from
+      # XDG_CONFIG_HOME, which the image points at /home/ue4/.config rather than $HOME.
+      - name: Disable Unreal Build Accelerator detours
+        run: |
+          docker exec -i unreal bash -c 'mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/Unreal Engine/UnrealBuildTool" && cat > "${XDG_CONFIG_HOME:-$HOME/.config}/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml"' <<'EOF'
+          <?xml version="1.0" encoding="utf-8" ?>
+          <Configuration xmlns="https://www.unrealengine.com/BuildConfiguration">
+            <BuildConfiguration>
+              <bAllowUBAExecutor>false</bAllowUBAExecutor>
+            </BuildConfiguration>
+            <UnrealBuildAccelerator>
+              <AllowDetour>false</AllowDetour>
+              <bForcedRetry>true</bForcedRetry>
+            </UnrealBuildAccelerator>
+          </Configuration>
+          EOF
+
+      - uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Build & package
+        run: docker exec -w /workspace/plugin/ unreal ue4 package
